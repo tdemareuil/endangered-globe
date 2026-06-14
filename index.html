@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>An Endangered Globe</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <link href="https://unpkg.com/maplibre-gl@^5.0.0/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/maplibre-gl@^5.0.0/dist/maplibre-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/markmclaren/maplibre-gl-starfield@main/maplibre-gl-starfield-0.1.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            margin: 0; padding: 0;
+            background: #000008;
+            overflow: hidden;
+            width: 100%; height: 100%;
+        }
+
+        /* Plugin containers — behind the WebGL canvas */
+        #starfield-container, #globe-glow {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0; pointer-events: none;
+        }
+
+        #map {
+            position: absolute; top: 0; bottom: 0; width: 100%;
+            z-index: 5;
+            background: transparent !important;
+        }
+
+        /* Depth gradient + atmospheric rim rendered above the canvas */
+        #globe-overlay {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 6; pointer-events: none;
+        }
+
+        #menu {
+            position: absolute; top: 15px; left: 15px;
+            color: #fff; padding: 20px;
+            background: rgba(10, 10, 15, 0.6);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            font-family: 'Open Sans', sans-serif; font-size: 12px;
+            max-width: 240px; z-index: 10;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        #menu h2 { margin: 0 0 10px; font-size: 16px; font-weight: 700; }
+        #menu p { color: rgba(255, 255, 255, 0.7); line-height: 1.6; margin: 0 0 15px; }
+        #menu a { color: #FF944D; text-decoration: none; font-weight: 600; }
+        #menu a:hover { text-decoration: underline; }
+
+        .filter-group {
+            display: flex; flex-direction: column; gap: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 15px;
+        }
+        .filter-group label {
+            display: flex; align-items: center; gap: 10px;
+            cursor: pointer; font-size: 12px; font-weight: 600;
+            color: rgba(255, 255, 255, 0.85);
+        }
+        .filter-group input[type="radio"] { cursor: pointer; accent-color: #FF6B00; margin: 0; }
+
+        .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .dot-all { background: #ffffff; }
+        .dot-ew { background: #CC77FF; box-shadow: 0 0 8px #CC77FF; }
+        .dot-cr { background: #8F102A; box-shadow: 0 0 8px #8F102A; }
+        .dot-en { background: #E32636; box-shadow: 0 0 8px #E32636; }
+        .dot-vu { background: #FF944D; box-shadow: 0 0 8px #FF944D; }
+        .dot-nt { background: #FFE64D; box-shadow: 0 0 8px #FFE64D; }
+
+        .maplibregl-popup-content {
+            background: rgba(10, 10, 15, 0.85); color: white;
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px; padding: 15px;
+            font-family: 'Open Sans', sans-serif; font-size: 12px;
+            line-height: 1.7; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+        }
+        .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: rgba(10, 10, 15, 0.85); }
+        .maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: rgba(10, 10, 15, 0.85); }
+        .maplibregl-popup-close-button { color: rgba(255, 255, 255, 0.5); font-size: 16px; padding: 4px 8px; }
+    </style>
+</head>
+
+<body>
+
+    <div id="starfield-container"></div>
+    <div id="globe-glow"></div>
+    <div id="map"></div>
+    <div id="globe-overlay"></div>
+
+    <div id="menu">
+        <h2>An Endangered Globe</h2>
+        <p>
+            Mapping threatened animal species using
+            <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer">IUCN Red List</a> data.
+            Sized by Wikipedia popularity (annual pageviews) — zoom in to reveal rarer species.<br><br>
+            Made by <a href="https://github.com/tdemareuil/endangered-globe" target="_blank" rel="noopener noreferrer">Thomas de Mareuil</a>.
+            Inspired by <a href="https://tjukanovt.github.io/notable-people" target="_blank" rel="noopener noreferrer">Notable People</a> by Topi Tjukanov.
+        </p>
+        <div class="filter-group">
+            <label><input type="radio" name="filter" value="all" checked><span class="dot dot-all"></span> All species</label>
+            <label><input type="radio" name="filter" value="EW"><span class="dot dot-ew"></span> EW — Extinct in the Wild</label>
+            <label><input type="radio" name="filter" value="CR"><span class="dot dot-cr"></span> CR — Critically Endangered</label>
+            <label><input type="radio" name="filter" value="EN"><span class="dot dot-en"></span> EN — Endangered</label>
+            <label><input type="radio" name="filter" value="VU"><span class="dot dot-vu"></span> VU — Vulnerable</label>
+            <label><input type="radio" name="filter" value="NT"><span class="dot dot-nt"></span> NT — Near Threatened</label>
+        </div>
+    </div>
+
+    <script>
+        // --- TEST DATA — replace with fetch('animals.geojson') when pipeline is ready ---
+        const animals = {
+            type: 'FeatureCollection',
+            features: [
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [104.0, 30.6] },   properties: { label: 'Giant Panda',          category_iucn: 'VU', popularity: 8500000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-140.0, 18.0] },  properties: { label: 'Blue Whale',            category_iucn: 'EN', popularity: 4500000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-85.0, 70.0] },   properties: { label: 'Polar Bear',            category_iucn: 'NT', popularity: 5200000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [132.0, 48.0] },   properties: { label: 'Siberian Tiger',        category_iucn: 'EN', popularity: 3200000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [29.5, -1.4] },    properties: { label: 'Mountain Gorilla',      category_iucn: 'EN', popularity: 2100000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [85.0, 35.0] },    properties: { label: 'Snow Leopard',          category_iucn: 'VU', popularity: 1800000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [98.0, 2.0] },     properties: { label: 'Sumatran Orangutan',    category_iucn: 'CR', popularity: 1200000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-51.0, -3.5] },   properties: { label: 'Amazon River Dolphin',  category_iucn: 'EN', popularity: 870000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [25.0, -22.0] },   properties: { label: 'African Wild Dog',      category_iucn: 'EN', popularity: 650000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-114.3, 29.3] },  properties: { label: 'Vaquita',              category_iucn: 'CR', popularity: 420000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [105.3, -7.5] },   properties: { label: 'Javan Rhinoceros',      category_iucn: 'CR', popularity: 350000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [15.0, 20.0] },    properties: { label: 'Scimitar Oryx',         category_iucn: 'EW', popularity: 480000 } },
+            ]
+        };
+
+        const starryBg = new MapLibreStarryBackground({
+            starCount: 1200,
+            glowIntensity: 0   // kills the opaque blue fill blob
+        });
+
+        function normalizeLng(lng) {
+            return ((lng + 540) % 360) - 180;
+        }
+
+        function getGlobeMetrics(map) {
+            const container = map && map.getContainer ? map.getContainer() : document.body;
+            const w = container.clientWidth || window.innerWidth;
+            const h = container.clientHeight || window.innerHeight;
+            const fallback = {
+                cx: w / 2,
+                cy: h / 2,
+                r: Math.min(w, h) * 0.44
+            };
+            if (!map || !map.project || !map.getCenter) return fallback;
+
+            try {
+                const center = map.getCenter();
+                const centerPx = map.project([center.lng, center.lat]);
+                const edgePx = map.project([normalizeLng(center.lng + 90), 0]);
+                const radius = Math.hypot(edgePx.x - centerPx.x, edgePx.y - centerPx.y);
+                if (
+                    Number.isFinite(centerPx.x) &&
+                    Number.isFinite(centerPx.y) &&
+                    Number.isFinite(radius) &&
+                    radius > 80 &&
+                    radius < Math.max(w, h)
+                ) {
+                    return {
+                        cx: centerPx.x,
+                        cy: centerPx.y,
+                        r: radius
+                    };
+                }
+            } catch(e) {}
+            return fallback;
+        };
+
+        // Keep the plugin corona empty so no extra rim drifts away from the globe.
+        starryBg.calculateGlowRadius = function(map) {
+            return getGlobeMetrics(map).r;
+        };
+
+        starryBg.createEnhancedCorona = function(svg, width, height, baseRadius) {
+            if (this.elements.coronaGroup) {
+                try { svg.removeChild(this.elements.coronaGroup); } catch(e) {}
+            }
+            const ns = "http://www.w3.org/2000/svg";
+            const g = document.createElementNS(ns, "g");
+            g.setAttribute("class", "corona-group");
+            svg.appendChild(g);
+            this.elements.coronaGroup = g;
+        };
+
+        function moveStarfield(dx, dy) {
+            if (!starryBg.elements.starfieldSvg || !starryBg.stars.length) return;
+            const w = parseInt(starryBg.elements.starfieldSvg.getAttribute("width"));
+            const h = parseInt(starryBg.elements.starfieldSvg.getAttribute("height"));
+            const cx = w / 2;
+            const cy = h / 2;
+            const angle = dx * 0.00125 - dy * 0.00035;
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            const driftX = dx * 0.72;
+            const driftY = dy * 0.72;
+            starryBg.stars.forEach(star => {
+                if (!star.element) return;
+                const rx = star.pos.x - cx;
+                const ry = star.pos.y - cy;
+                let x = (cx + rx * cos - ry * sin + driftX) % w;
+                let y = (cy + rx * sin + ry * cos + driftY) % h;
+                if (x < 0) x += w;
+                if (y < 0) y += h;
+                star.pos.x = x; star.pos.y = y;
+                star.element.setAttribute("cx", x);
+                star.element.setAttribute("cy", y);
+            });
+        }
+
+        // Celestial-vault motion: one coherent sky field, gently curved around center.
+        starryBg.updateStarPositions = function(bearingDelta, pitchDelta, lngDelta) {
+            moveStarfield(
+                bearingDelta * 0.8 + lngDelta * 2.5,
+                pitchDelta * 0.4
+            );
+        };
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
+            zoom: 2,
+            minZoom: 1.35,
+            center: [10, 20],
+            pitch: 0
+        });
+
+        function clamp(value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        }
+
+        const animalLayerIds = ['animals-dots', 'animals-labels'];
+        let activeCategory = 'all';
+
+        function getThreatFilter(category) {
+            return category === 'all' ? null : ['==', ['get', 'category_iucn'], category];
+        }
+
+        function applyThreatFilter() {
+            if (!animalLayerIds.every(layerId => map.getLayer(layerId))) return;
+            const filter = getThreatFilter(activeCategory);
+            animalLayerIds.forEach(layerId => map.setFilter(layerId, filter));
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        function paintGlobeStyleLayers() {
+            const ocean = '#17106f';
+            const land = '#3d38f0';
+            const boundary = '#9f83ef';
+
+            if (!map.getSource('globe-land')) {
+                map.addSource('globe-land', {
+                    type: 'geojson',
+                    data: {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[
+                                [-180, -90],
+                                [-180, 90],
+                                [180, 90],
+                                [180, -90],
+                                [-180, -90]
+                            ]]
+                        },
+                        properties: {}
+                    }
+                });
+            }
+
+            if (!map.getLayer('globe-land-fill')) {
+                map.addLayer({
+                    id: 'globe-land-fill',
+                    type: 'fill',
+                    source: 'globe-land',
+                    paint: {
+                        'fill-color': land,
+                        'fill-opacity': 1
+                    }
+                }, 'landcover');
+            }
+
+            map.getStyle().layers.forEach(layer => {
+                const layerKey = `${layer.id} ${layer['source-layer'] || ''}`.toLowerCase();
+                if (layer.type === 'background') {
+                    try { map.setPaintProperty(layer.id, 'background-opacity', 0); } catch(e) {}
+                    try { map.setPaintProperty(layer.id, 'background-color', 'rgba(0,0,0,0)'); } catch(e) {}
+                } else if (layer.type === 'fill') {
+                    const isWater = /water|ocean|marine|lake|river/.test(layerKey);
+                    const isShadow = /shadow/.test(layerKey);
+                    try { map.setPaintProperty(layer.id, 'fill-opacity', 1); } catch(e) {}
+                    if (isShadow) {
+                        try { map.setPaintProperty(layer.id, 'fill-opacity', 0); } catch(e) {}
+                    } else {
+                        try { map.setPaintProperty(layer.id, 'fill-color', isWater ? ocean : land); } catch(e) {}
+                    }
+                } else if (layer.type === 'line') {
+                    const isBoundary = /boundary|admin|country|border/.test(layerKey);
+                    try { map.setPaintProperty(layer.id, 'line-opacity', isBoundary ? 0.42 : 0.16); } catch(e) {}
+                    try { map.setPaintProperty(layer.id, 'line-color', isBoundary ? boundary : '#5c51c8'); } catch(e) {}
+                } else if (layer.type === 'symbol') {
+                    try { map.setLayoutProperty(layer.id, 'visibility', 'none'); } catch(e) {}
+                }
+            });
+        }
+
+        // Keep this layer empty unless a globe effect can track MapLibre's globe exactly.
+        function updateGlobeEffects(map) {
+            const overlay = document.getElementById('globe-overlay');
+            if (!overlay) return;
+            overlay.innerHTML = '';
+        }
+
+        let globeEffectsFrame = null;
+        function scheduleGlobeEffectsUpdate() {
+            if (globeEffectsFrame !== null) return;
+            globeEffectsFrame = requestAnimationFrame(() => {
+                globeEffectsFrame = null;
+                updateGlobeEffects(map);
+            });
+        }
+
+        map.on('style.load', () => {
+            map.setProjection({ type: 'globe' });
+
+            paintGlobeStyleLayers();
+
+            starryBg.attachToMap(map, 'starfield-container', 'globe-glow');
+            setTimeout(scheduleGlobeEffectsUpdate, 250);
+        });
+
+        map.on('zoom', scheduleGlobeEffectsUpdate);
+        map.on('move', scheduleGlobeEffectsUpdate);
+        window.addEventListener('resize', scheduleGlobeEffectsUpdate);
+
+        let wheelOrbitFrame = null;
+        let wheelOrbit = null;
+        map.getCanvasContainer().addEventListener('wheel', event => {
+            const rect = map.getCanvasContainer().getBoundingClientRect();
+            const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1);
+            wheelOrbit = {
+                x: event.clientX - rect.left,
+                y: event.clientY - rect.top,
+                width: rect.width,
+                height: rect.height,
+                delta
+            };
+
+            if (wheelOrbitFrame !== null) return;
+            wheelOrbitFrame = requestAnimationFrame(() => {
+                wheelOrbitFrame = null;
+                if (!wheelOrbit) return;
+
+                const { x, y, width, height, delta } = wheelOrbit;
+                const offX = (x - width / 2) / (width / 2);
+                const offY = (y - height / 2) / (height / 2);
+                const offCenter = Math.min(1.15, Math.hypot(offX, offY));
+                if (offCenter < 0.12 || !delta) return;
+
+                const center = map.getCenter();
+                const cursorLngLat = map.unproject([x, y]);
+                const lngDelta = normalizeLng(cursorLngLat.lng - center.lng);
+                const latDelta = cursorLngLat.lat - center.lat;
+                const zoomDirection = delta < 0 ? 1 : -1;
+                const wheelStrength = Math.min(1, Math.abs(delta) / 120);
+                const orbitAmount = 0.018 * offCenter * wheelStrength * zoomDirection;
+
+                map.jumpTo({
+                    center: [
+                        normalizeLng(center.lng + lngDelta * orbitAmount),
+                        clamp(center.lat + latDelta * orbitAmount, -82, 82)
+                    ]
+                });
+            });
+        }, { passive: true });
+
+        map.on('load', () => {
+            map.addSource('animals', { type: 'geojson', data: animals });
+
+            map.addLayer({
+                id: 'animals-dots',
+                type: 'circle',
+                source: 'animals',
+                paint: {
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 2.5, 5, 4, 10, 6],
+                    'circle-color': ['match', ['get', 'category_iucn'],
+                        'EW', '#CC77FF',
+                        'CR', '#8F102A',
+                        'EN', '#E32636',
+                        'VU', '#FF944D',
+                        'NT', '#FFE64D',
+                        '#ffffff'],
+                    'circle-blur': 0.4,
+                    'circle-opacity': 0.85
+                }
+            });
+
+            map.addLayer({
+                id: 'animals-labels',
+                type: 'symbol',
+                source: 'animals',
+                layout: {
+                    'symbol-sort-key': ['*', -1, ['to-number', ['get', 'popularity'], 0]],
+                    'text-field': ['get', 'label'],
+                    'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+                    'text-allow-overlap': false,
+                    'text-ignore-placement': false,
+                    'text-size': [
+                        'interpolate', ['linear'], ['zoom'],
+                        0,  ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 8,  10000000, 13],
+                        8,  ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 10, 10000000, 20],
+                        14, ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 12, 10000000, 26]
+                    ],
+                    'text-offset': [0, 0.8]
+                },
+                paint: {
+                    'text-color': '#ffffff',
+                    'text-halo-color': 'rgba(4, 2, 24, 0.72)',
+                    'text-halo-width': 0.55,
+                    'text-halo-blur': 0.1
+                }
+            });
+
+            applyThreatFilter();
+        });
+
+        // N/S celestial-vault motion: latitude delta shifts the whole starfield.
+        let lastLat = map.getCenter().lat;
+        map.on('move', () => {
+            const lat = map.getCenter().lat;
+            const dLat = lat - lastLat;
+            lastLat = lat;
+            if (!dLat) return;
+            moveStarfield(0, -dLat * 2.5);
+        });
+
+        document.querySelectorAll('input[name="filter"]').forEach(input => {
+            input.addEventListener('change', () => {
+                activeCategory = input.value;
+                applyThreatFilter();
+            });
+        });
+
+        const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '260px' });
+        const neonColor    = { EW: '#CC77FF', CR: '#8F102A', EN: '#E32636', VU: '#FF944D', NT: '#FFE64D' };
+        const categoryLabel = { EW: 'Extinct in the Wild', CR: 'Critically Endangered', EN: 'Endangered', VU: 'Vulnerable', NT: 'Near Threatened' };
+
+        map.on('click', 'animals-labels', (e) => {
+            const { label, category_iucn, popularity } = e.features[0].properties;
+            const coords = e.features[0].geometry.coordinates;
+            const color = neonColor[category_iucn] || '#fff';
+            const speciesLabel = String(label || 'Unknown species');
+            const wikiSlug = encodeURIComponent(speciesLabel.trim().replace(/\s+/g, '_'));
+            const popularityNumber = Number(popularity);
+            const formattedPopularity = Number.isFinite(popularityNumber) ? popularityNumber.toLocaleString() : 'n/a';
+            popup.setLngLat(coords).setHTML(`
+                <b style="font-size:14px">
+                    <a href="https://en.wikipedia.org/wiki/${wikiSlug}" target="_blank" rel="noopener noreferrer" style="color:${color}; text-decoration:underline">${escapeHtml(speciesLabel)}</a>
+                </b><br>
+                <span style="color:${color}; font-weight:bold">&#9679; ${escapeHtml(category_iucn)}</span> — ${escapeHtml(categoryLabel[category_iucn] || 'Unknown category')}<br>
+                <span style="color:rgba(255,255,255,0.6); font-size:11px">Wikipedia views/yr: ${formattedPopularity}</span>
+            `).addTo(map);
+        });
+
+        map.on('mouseenter', 'animals-labels', () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', 'animals-labels', () => { map.getCanvas().style.cursor = ''; });
+    </script>
+
+</body>
+</html>
