@@ -52,17 +52,33 @@
         #menu p { color: rgba(255, 255, 255, 0.7); line-height: 1.6; margin: 0 0 15px; }
         #menu a { color: #FF944D; text-decoration: none; font-weight: 600; }
         #menu a:hover { text-decoration: underline; }
+        .data-credit {
+            display: block;
+            margin-top: 10px;
+            color: rgba(255, 255, 255, 0.52);
+            font-size: 10px;
+            line-height: 1.45;
+        }
 
         .filter-group {
             display: flex; flex-direction: column; gap: 10px;
             border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 15px;
+        }
+        .filter-group + .filter-group { margin-top: 15px; }
+        .filter-title {
+            margin: 0 0 2px;
+            color: rgba(255, 255, 255, 0.55);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
         .filter-group label {
             display: flex; align-items: center; gap: 10px;
             cursor: pointer; font-size: 12px; font-weight: 600;
             color: rgba(255, 255, 255, 0.85);
         }
-        .filter-group input[type="radio"] { cursor: pointer; accent-color: #FF6B00; margin: 0; }
+        .filter-group input[type="checkbox"] { cursor: pointer; accent-color: #FF6B00; margin: 0; }
 
         .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .dot-all { background: #ffffff; }
@@ -71,6 +87,7 @@
         .dot-en { background: #E32636; box-shadow: 0 0 8px #E32636; }
         .dot-vu { background: #FF944D; box-shadow: 0 0 8px #FF944D; }
         .dot-nt { background: #FFE64D; box-shadow: 0 0 8px #FFE64D; }
+        .dot-group { background: rgba(255, 255, 255, 0.65); box-shadow: none; }
 
         .maplibregl-popup-content {
             background: rgba(10, 10, 15, 0.85); color: white;
@@ -83,6 +100,22 @@
         .maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: rgba(10, 10, 15, 0.85); }
         .maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: rgba(10, 10, 15, 0.85); }
         .maplibregl-popup-close-button { color: rgba(255, 255, 255, 0.5); font-size: 16px; padding: 4px 8px; }
+        .popup-species-image {
+            display: block;
+            width: 100%;
+            height: 128px;
+            object-fit: cover;
+            border-radius: 7px;
+            margin: 0 0 10px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .popup-image-source {
+            display: block;
+            margin-top: 4px;
+            color: rgba(255, 255, 255, 0.46);
+            font-size: 10px;
+            line-height: 1.3;
+        }
     </style>
 </head>
 
@@ -97,18 +130,32 @@
         <h2>An Endangered Globe</h2>
         <p>
             Mapping threatened animal species using
-            <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer">IUCN Red List</a> data.
+            <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer">IUCN Red List</a>
+            and <a href="https://www.birdlife.org/" target="_blank" rel="noopener noreferrer">BirdLife International</a> data.
             Sized by Wikipedia popularity (annual pageviews) — zoom in to reveal rarer species.<br><br>
             Made by <a href="https://github.com/tdemareuil/endangered-globe" target="_blank" rel="noopener noreferrer">Thomas de Mareuil</a>.
             Inspired by <a href="https://tjukanovt.github.io/notable-people" target="_blank" rel="noopener noreferrer">Notable People</a> by Topi Tjukanov.
+            <span class="data-credit">
+                Spatial data: IUCN 2025. The IUCN Red List of Threatened Species. Version 2025-2.
+                <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer">https://www.iucnredlist.org</a>.
+                Downloaded on 14 June 2026. Data last updated 10 October 2025.
+            </span>
         </p>
-        <div class="filter-group">
-            <label><input type="radio" name="filter" value="all" checked><span class="dot dot-all"></span> All species</label>
-            <label><input type="radio" name="filter" value="EW"><span class="dot dot-ew"></span> EW — Extinct in the Wild</label>
-            <label><input type="radio" name="filter" value="CR"><span class="dot dot-cr"></span> CR — Critically Endangered</label>
-            <label><input type="radio" name="filter" value="EN"><span class="dot dot-en"></span> EN — Endangered</label>
-            <label><input type="radio" name="filter" value="VU"><span class="dot dot-vu"></span> VU — Vulnerable</label>
-            <label><input type="radio" name="filter" value="NT"><span class="dot dot-nt"></span> NT — Near Threatened</label>
+        <div class="filter-group" data-filter-group="threat">
+            <div class="filter-title">Threat level</div>
+            <label><input type="checkbox" name="threat-filter" value="all" checked><span class="dot dot-all"></span> All statuses</label>
+            <label><input type="checkbox" name="threat-filter" value="EW"><span class="dot dot-ew"></span> EW — Extinct in the Wild</label>
+            <label><input type="checkbox" name="threat-filter" value="CR"><span class="dot dot-cr"></span> CR — Critically Endangered</label>
+            <label><input type="checkbox" name="threat-filter" value="EN"><span class="dot dot-en"></span> EN — Endangered</label>
+            <label><input type="checkbox" name="threat-filter" value="VU"><span class="dot dot-vu"></span> VU — Vulnerable</label>
+            <label><input type="checkbox" name="threat-filter" value="NT"><span class="dot dot-nt"></span> NT — Near Threatened</label>
+        </div>
+        <div class="filter-group" data-filter-group="animal">
+            <div class="filter-title">Animal group</div>
+            <label><input type="checkbox" name="animal-filter" value="all" checked><span class="dot dot-all"></span> All animals</label>
+            <label><input type="checkbox" name="animal-filter" value="Mammals"><span class="dot dot-group"></span> Mammals</label>
+            <label><input type="checkbox" name="animal-filter" value="Birds"><span class="dot dot-group"></span> Birds</label>
+            <label><input type="checkbox" name="animal-filter" value="Other (Reptiles, Amphibians)"><span class="dot dot-group"></span> Other (Reptiles, Amphibians)</label>
         </div>
     </div>
 
@@ -117,25 +164,47 @@
         const animals = {
             type: 'FeatureCollection',
             features: [
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [104.0, 30.6] },   properties: { label: 'Giant Panda',          category_iucn: 'VU', popularity: 8500000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [-140.0, 18.0] },  properties: { label: 'Blue Whale',            category_iucn: 'EN', popularity: 4500000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [-85.0, 70.0] },   properties: { label: 'Polar Bear',            category_iucn: 'NT', popularity: 5200000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [132.0, 48.0] },   properties: { label: 'Siberian Tiger',        category_iucn: 'EN', popularity: 3200000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [29.5, -1.4] },    properties: { label: 'Mountain Gorilla',      category_iucn: 'EN', popularity: 2100000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [85.0, 35.0] },    properties: { label: 'Snow Leopard',          category_iucn: 'VU', popularity: 1800000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [98.0, 2.0] },     properties: { label: 'Sumatran Orangutan',    category_iucn: 'CR', popularity: 1200000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [-51.0, -3.5] },   properties: { label: 'Amazon River Dolphin',  category_iucn: 'EN', popularity: 870000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [25.0, -22.0] },   properties: { label: 'African Wild Dog',      category_iucn: 'EN', popularity: 650000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [-114.3, 29.3] },  properties: { label: 'Vaquita',              category_iucn: 'CR', popularity: 420000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [105.3, -7.5] },   properties: { label: 'Javan Rhinoceros',      category_iucn: 'CR', popularity: 350000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [15.0, 20.0] },    properties: { label: 'Scimitar Oryx',         category_iucn: 'EW', popularity: 480000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [104.0, 30.6] },   properties: { label: 'Giant Panda',          category_iucn: 'VU', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 8500000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-140.0, 18.0] },  properties: { label: 'Blue Whale',            category_iucn: 'EN', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 4500000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-85.0, 70.0] },   properties: { label: 'Polar Bear',            category_iucn: 'NT', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 5200000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [132.0, 48.0] },   properties: { label: 'Siberian Tiger',        category_iucn: 'EN', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 3200000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [29.5, -1.4] },    properties: { label: 'Mountain Gorilla',      category_iucn: 'EN', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 2100000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [85.0, 35.0] },    properties: { label: 'Snow Leopard',          category_iucn: 'VU', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 1800000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [98.0, 2.0] },     properties: { label: 'Sumatran Orangutan',    category_iucn: 'CR', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 1200000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-51.0, -3.5] },   properties: { label: 'Amazon River Dolphin',  category_iucn: 'EN', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 870000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [25.0, -22.0] },   properties: { label: 'African Wild Dog',      category_iucn: 'EN', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 650000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-114.3, 29.3] },  properties: { label: 'Vaquita',               category_iucn: 'CR', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 420000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [105.3, -7.5] },   properties: { label: 'Javan Rhinoceros',      category_iucn: 'CR', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 350000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [15.0, 20.0] },    properties: { label: 'Scimitar Oryx',         category_iucn: 'EW', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 480000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [167.0, -46.0] },  properties: { label: 'Kakapo',                category_iucn: 'CR', taxon_class: 'Aves', taxon_group: 'Birds', popularity: 760000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [125.0, 8.0] },    properties: { label: 'Philippine Eagle',      category_iucn: 'CR', taxon_class: 'Aves', taxon_group: 'Birds', popularity: 620000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [121.0, -8.5] },   properties: { label: 'Komodo Dragon',         category_iucn: 'EN', taxon_class: 'Reptilia', taxon_group: 'Other (Reptiles, Amphibians)', popularity: 1800000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-62.0, 14.0] },   properties: { label: 'Hawksbill Turtle',      category_iucn: 'CR', taxon_class: 'Reptilia', taxon_group: 'Other (Reptiles, Amphibians)', popularity: 540000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-99.0, 19.4] },   properties: { label: 'Axolotl',               category_iucn: 'CR', taxon_class: 'Amphibia', taxon_group: 'Other (Reptiles, Amphibians)', popularity: 2600000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-75.0, 5.0] },    properties: { label: 'Golden Poison Frog',    category_iucn: 'EN', taxon_class: 'Amphibia', taxon_group: 'Other (Reptiles, Amphibians)', popularity: 510000 } },
             ]
         };
 
         const starryBg = new MapLibreStarryBackground({
-            starCount: 1200,
+            starCount: 600,
             glowIntensity: 0   // kills the opaque blue fill blob
         });
+
+        function capStarSizes() {
+            if (!starryBg.stars || !starryBg.stars.length) return;
+            starryBg.stars.forEach(star => {
+                const radius = Math.min(star.size || 1, 2.0);
+                star.size = radius;
+                if (star.element) star.element.setAttribute("r", radius);
+            });
+        }
+
+        const createStarfield = starryBg.createStarfield.bind(starryBg);
+        starryBg.createStarfield = function() {
+            const svg = createStarfield();
+            capStarSizes();
+            return svg;
+        };
 
         function normalizeLng(lng) {
             return ((lng + 540) % 360) - 180;
@@ -237,16 +306,54 @@
         }
 
         const animalLayerIds = ['animals-dots', 'animals-labels'];
-        let activeCategory = 'all';
+        const selectedThreats = new Set();
+        const selectedAnimalGroups = new Set();
 
-        function getThreatFilter(category) {
-            return category === 'all' ? null : ['==', ['get', 'category_iucn'], category];
+        function getChoiceFilter(propertyName, selectedValues) {
+            return selectedValues.size
+                ? ['match', ['get', propertyName], Array.from(selectedValues), true, false]
+                : null;
         }
 
-        function applyThreatFilter() {
+        function getAnimalFilter() {
+            const filters = [
+                getChoiceFilter('category_iucn', selectedThreats),
+                getChoiceFilter('taxon_group', selectedAnimalGroups)
+            ].filter(Boolean);
+            if (!filters.length) return null;
+            return filters.length === 1 ? filters[0] : ['all', ...filters];
+        }
+
+        function applyAnimalFilter() {
             if (!animalLayerIds.every(layerId => map.getLayer(layerId))) return;
-            const filter = getThreatFilter(activeCategory);
+            const filter = getAnimalFilter();
             animalLayerIds.forEach(layerId => map.setFilter(layerId, filter));
+        }
+
+        function setupMultiSelectFilter(inputName, selectedSet, onUpdate) {
+            const inputs = Array.from(document.querySelectorAll(`input[name="${inputName}"]`));
+            const allInput = inputs.find(input => input.value === 'all');
+            const optionInputs = inputs.filter(input => input.value !== 'all');
+
+            function syncAllState() {
+                if (!allInput) return;
+                allInput.checked = selectedSet.size === 0;
+            }
+
+            inputs.forEach(input => {
+                input.addEventListener('change', () => {
+                    if (input.value === 'all') {
+                        selectedSet.clear();
+                        optionInputs.forEach(option => { option.checked = false; });
+                    } else if (input.checked) {
+                        selectedSet.add(input.value);
+                    } else {
+                        selectedSet.delete(input.value);
+                    }
+                    syncAllState();
+                    onUpdate();
+                });
+            });
         }
 
         function escapeHtml(value) {
@@ -257,6 +364,19 @@
                 '"': '&quot;',
                 "'": '&#39;'
             }[char]));
+        }
+
+        function safeExternalUrl(value) {
+            const url = String(value || '').trim();
+            if (!/^https?:\/\//i.test(url)) return '';
+            return url.replace(/^http:/i, 'https:');
+        }
+
+        function wikipediaUrlFromProject(project, title) {
+            const wikiProject = String(project || 'en.wikipedia.org').trim();
+            const pageTitle = String(title || '').trim().replace(/\s+/g, '_');
+            if (!/^[a-z0-9.-]+\.wikipedia\.org$/i.test(wikiProject) || !pageTitle) return '';
+            return `https://${wikiProject}/wiki/${encodeURIComponent(pageTitle)}`;
         }
 
         function paintGlobeStyleLayers() {
@@ -437,7 +557,7 @@
                 }
             });
 
-            applyThreatFilter();
+            applyAnimalFilter();
         });
 
         // N/S celestial-vault motion: latitude delta shifts the whole starfield.
@@ -450,31 +570,35 @@
             moveStarfield(0, -dLat * 2.5);
         });
 
-        document.querySelectorAll('input[name="filter"]').forEach(input => {
-            input.addEventListener('change', () => {
-                activeCategory = input.value;
-                applyThreatFilter();
-            });
-        });
+        setupMultiSelectFilter('threat-filter', selectedThreats, applyAnimalFilter);
+        setupMultiSelectFilter('animal-filter', selectedAnimalGroups, applyAnimalFilter);
 
-        const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '260px' });
+        const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '300px' });
         const neonColor    = { EW: '#CC77FF', CR: '#8F102A', EN: '#E32636', VU: '#FF944D', NT: '#FFE64D' };
         const categoryLabel = { EW: 'Extinct in the Wild', CR: 'Critically Endangered', EN: 'Endangered', VU: 'Vulnerable', NT: 'Near Threatened' };
 
         map.on('click', 'animals-labels', (e) => {
-            const { label, category_iucn, popularity } = e.features[0].properties;
+            const { label, category_iucn, taxon_class, taxon_group, popularity, wiki_title, wiki_project, wiki_url, image_url, image_source } = e.features[0].properties;
             const coords = e.features[0].geometry.coordinates;
             const color = neonColor[category_iucn] || '#fff';
             const speciesLabel = String(label || 'Unknown species');
-            const wikiSlug = encodeURIComponent(speciesLabel.trim().replace(/\s+/g, '_'));
+            const wikiHref = safeExternalUrl(wiki_url) || wikipediaUrlFromProject(wiki_project, wiki_title || speciesLabel);
             const popularityNumber = Number(popularity);
             const formattedPopularity = Number.isFinite(popularityNumber) ? popularityNumber.toLocaleString() : 'n/a';
+            const safeImageUrl = safeExternalUrl(image_url);
+            const imageHtml = safeImageUrl ? `
+                <img class="popup-species-image" src="${escapeHtml(safeImageUrl)}" alt="${escapeHtml(speciesLabel)}" loading="lazy" onerror="this.remove()">
+            ` : '';
+            const imageSourceHtml = safeImageUrl && image_source ? `<span class="popup-image-source">Image: ${escapeHtml(image_source)}</span>` : '';
             popup.setLngLat(coords).setHTML(`
+                ${imageHtml}
                 <b style="font-size:14px">
-                    <a href="https://en.wikipedia.org/wiki/${wikiSlug}" target="_blank" rel="noopener noreferrer" style="color:${color}; text-decoration:underline">${escapeHtml(speciesLabel)}</a>
+                    <a href="${escapeHtml(wikiHref)}" target="_blank" rel="noopener noreferrer" style="color:${color}; text-decoration:underline">${escapeHtml(speciesLabel)}</a>
                 </b><br>
                 <span style="color:${color}; font-weight:bold">&#9679; ${escapeHtml(category_iucn)}</span> — ${escapeHtml(categoryLabel[category_iucn] || 'Unknown category')}<br>
+                <span style="color:rgba(255,255,255,0.78)">${escapeHtml(taxon_group || 'Unknown animal group')}${taxon_class ? ` (${escapeHtml(taxon_class)})` : ''}</span><br>
                 <span style="color:rgba(255,255,255,0.6); font-size:11px">Wikipedia views/yr: ${formattedPopularity}</span>
+                ${imageSourceHtml}
             `).addTo(map);
         });
 

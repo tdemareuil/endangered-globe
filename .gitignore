@@ -1,0 +1,6 @@
+*.DS_Store
+/data/shapefiles/
+/data/processed/
+/data/cache/
+__pycache__/
+*.pyc
