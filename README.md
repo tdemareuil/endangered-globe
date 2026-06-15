@@ -110,8 +110,10 @@ All heavy processing runs locally and produces a single lightweight GeoJSON file
 - Read the cleaned spatial file instead of reopening the raw shapefiles in the notebook.
 - For each species, compute one or more **label points** from its habitat geometry:
   - one contiguous range polygon → one centroid-like point inside the polygon;
-  - multiple disjoint range polygons → one point for each of the 10 largest components max;
+  - multiple disjoint range polygons → nearby components are clustered by buffering each component by 200 km, the largest cluster always gets a point, then secondary clusters get a point only if they represent at least 10% of total selected range area, up to 5 clusters total;
   - no range polygon → one centroid from the observation points.
+- Do not drop small fragments before clustering: for highly threatened species, the most representative known range can be tiny. The 10% rule only limits additional secondary label points.
+- Future idea: replace the fixed 200 km range-clustering buffer with an adaptive buffer, for example scaled by species range size or polygon density.
 - Export the dissolved source geometry separately as `animals-spatial.geojson` for future polygon/point work.
 
 ### Step 2 — Popularity harvesting
@@ -120,9 +122,24 @@ For each valid species:
 1. Query Wikidata (SPARQL) to retrieve the preferred Wikipedia sitelink and `P18` image.
 2. Query the matching Wikimedia Pageviews project to get the 12-month view count.
 3. Query the selected Wikipedia page summary only when a Wikidata image is missing, and use its thumbnail as fallback.
-4. Store the final `image_url`, `image_source`, and popularity score.
+4. If both are missing, search Wikimedia Commons by scientific name first, then main common name, and keep the first usable bitmap image with available attribution metadata. Skip candidate image titles or URLs containing `distrib`, `range`, or `extent`, since those are likely maps rather than animal photos.
+5. Store the final `image_url`, `image_source`, image attribution fields, and popularity score.
 
 Be polite to the Wikipedia API: set a proper `User-Agent` header (include your email) and add `time.sleep(0.1)` between requests.
+
+The notebook fetches each external image/pageviews resource once per unique article or taxon, then fills duplicate label-point rows created by multi-centroid species.
+
+Current image priority:
+
+- `Wikidata P18`
+- selected Wikipedia page thumbnail
+- Wikimedia Commons search by exact scientific name, then exact main common name
+
+Future improvement ideas:
+
+- Use the selected Wikidata item to collect Commons categories or sitelinks, then search inside those narrower Commons results.
+- Add manual review flags for Commons fallback images whose search term came from the main common name.
+- Avoid scraping or hotlinking IUCN images unless the rights and credit requirements are handled explicitly.
 
 ### Step 3 — Clean GeoJSON export
 
@@ -141,6 +158,9 @@ The script produces `animals.geojson`, a lightweight list of GeoJSON Point featu
     "wiki_url": "https://en.wikipedia.org/wiki/Tiger",
     "image_url": "https://commons.wikimedia.org/wiki/Special:FilePath/Panthera_tigris_tigris.jpg",
     "image_source": "Wikidata P18",
+    "commons_image_page_url": null,
+    "commons_image_author": null,
+    "commons_image_license": null,
     "population_trend": "Decreasing",
     "number_of_mature_individuals": "2654",
     "estimated_area_of_occupancy": "882408",
@@ -158,6 +178,10 @@ The script produces `animals.geojson`, a lightweight list of GeoJSON Point featu
     "centroid_rank": 1,
     "centroid_count": 3,
     "range_component_count": 12,
+    "range_cluster_count": 5,
+    "range_cluster_component_count": 3,
+    "range_cluster_buffer_km": 200,
+    "range_cluster_area_share": 0.52,
     "spatial_presence_label": "Extant",
     "spatial_seasonal_label": "Resident",
     "spatial_credit": "IUCN 2025. The IUCN Red List of Threatened Species. Version 2025-2. https://www.iucnredlist.org. Downloaded on 14 June 2026.",
@@ -244,7 +268,7 @@ border: 1px solid rgba(255, 255, 255, 0.08);
 1. **Create your IUCN account** at [iucnredlist.org](https://www.iucnredlist.org/) to get access to species geographic data (allow 24–48h for validation).
 2. **Bootstrap the Python pipeline** locally in sample mode: query the IUCN API for 20 mammals using the same downstream steps as the full run.
 3. **Wire up the Wikidata → Pageviews bridge** in Python to confirm you can generate a popularity score for those animals.
-4. **Replace inline test data** in `index.html` with `fetch('animals.geojson')` once the pipeline produces the real file.
+4. **Use the generated browser dataset**: `index.html` now loads `animals.geojson`, with inline sample data kept only as a fallback.
 5. **Scale the pipeline** to the full IUCN animal dataset (EW + CR + EN + VU + NT/CD), export `animals.geojson`, and deploy to GitHub Pages.
 
 ---

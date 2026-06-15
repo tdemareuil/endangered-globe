@@ -160,8 +160,8 @@
     </div>
 
     <script>
-        // --- TEST DATA — replace with fetch('animals.geojson') when pipeline is ready ---
-        const animals = {
+        // Fallback data only; the real browser dataset is loaded from animals.geojson.
+        const fallbackAnimals = {
             type: 'FeatureCollection',
             features: [
                 { type: 'Feature', geometry: { type: 'Point', coordinates: [104.0, 30.6] },   properties: { label: 'Giant Panda',          category_iucn: 'VU', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 8500000 } },
@@ -184,6 +184,49 @@
                 { type: 'Feature', geometry: { type: 'Point', coordinates: [-75.0, 5.0] },    properties: { label: 'Golden Poison Frog',    category_iucn: 'EN', taxon_class: 'Amphibia', taxon_group: 'Other (Reptiles, Amphibians)', popularity: 510000 } },
             ]
         };
+
+        let animals = fallbackAnimals;
+
+        async function loadAnimals() {
+            try {
+                const response = await fetch('animals.geojson', { cache: 'no-store' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                if (!data || data.type !== 'FeatureCollection' || !Array.isArray(data.features) || !data.features.length) {
+                    throw new Error('Invalid or empty animals.geojson');
+                }
+                return data;
+            } catch (error) {
+                console.warn('Falling back to inline animal sample:', error);
+                return fallbackAnimals;
+            }
+        }
+
+        function getPopularityQuartiles(featureCollection) {
+            const valuesByTaxon = new Map();
+            (featureCollection.features || []).forEach((feature, index) => {
+                const props = feature.properties || {};
+                const popularity = Number(props.popularity);
+                if (!Number.isFinite(popularity)) return;
+                const key = props.taxonid ?? props.label ?? index;
+                if (!valuesByTaxon.has(key)) valuesByTaxon.set(key, popularity);
+            });
+
+            const values = Array.from(valuesByTaxon.values()).sort((a, b) => a - b);
+            if (!values.length) return { q1: 500000, q3: 2500000 };
+
+            const quantile = (q) => {
+                const position = (values.length - 1) * q;
+                const base = Math.floor(position);
+                const rest = position - base;
+                const next = values[base + 1];
+                return next === undefined ? values[base] : values[base] + rest * (next - values[base]);
+            };
+
+            const q1 = quantile(0.25);
+            const q3 = quantile(0.75);
+            return { q1, q3: q3 > q1 ? q3 : q1 + 1 };
+        }
 
         const starryBg = new MapLibreStarryBackground({
             starCount: 600,
@@ -295,7 +338,7 @@
         const map = new maplibregl.Map({
             container: 'map',
             style: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
-            zoom: 2,
+            zoom: 2.3,
             minZoom: 1.35,
             center: [10, 20],
             pitch: 0
@@ -364,6 +407,23 @@
                 '"': '&quot;',
                 "'": '&#39;'
             }[char]));
+        }
+
+        function hasDisplayValue(value) {
+            if (value === null || value === undefined) return false;
+            const text = String(value).trim();
+            const normalized = text.toLowerCase();
+            return text !== '' && !['none', 'nan', 'unknown'].includes(normalized);
+        }
+
+        function formatDataValue(value) {
+            if (!hasDisplayValue(value)) return '';
+            const text = String(value).trim();
+            const number = Number(text.replace(/,/g, ''));
+            if (Number.isFinite(number) && /^-?\d+(\.\d+)?$/.test(text.replace(/,/g, ''))) {
+                return number.toLocaleString(undefined, { maximumFractionDigits: 1 });
+            }
+            return text;
         }
 
         function safeExternalUrl(value) {
@@ -510,7 +570,9 @@
             });
         }, { passive: true });
 
-        map.on('load', () => {
+        map.on('load', async () => {
+            animals = await loadAnimals();
+            const popularityQuartiles = getPopularityQuartiles(animals);
             map.addSource('animals', { type: 'geojson', data: animals });
 
             map.addLayer({
@@ -538,14 +600,19 @@
                 layout: {
                     'symbol-sort-key': ['*', -1, ['to-number', ['get', 'popularity'], 0]],
                     'text-field': ['get', 'label'],
-                    'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+                    'text-font': [
+                        'step', ['to-number', ['get', 'popularity'], 0],
+                        ['literal', ['Open Sans Regular', 'Arial Unicode MS Regular']],
+                        popularityQuartiles.q1, ['literal', ['Open Sans Semibold', 'Arial Unicode MS Regular']],
+                        popularityQuartiles.q3, ['literal', ['Open Sans Bold', 'Arial Unicode MS Regular']]
+                    ],
                     'text-allow-overlap': false,
                     'text-ignore-placement': false,
                     'text-size': [
                         'interpolate', ['linear'], ['zoom'],
-                        0,  ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 8,  10000000, 13],
-                        8,  ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 10, 10000000, 20],
-                        14, ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 12, 10000000, 26]
+                        0,  ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 8,  10000000, 11],
+                        8,  ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 10, 10000000, 14],
+                        14, ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 12, 10000000, 16]
                     ],
                     'text-offset': [0, 0.8]
                 },
@@ -578,7 +645,11 @@
         const categoryLabel = { EW: 'Extinct in the Wild', CR: 'Critically Endangered', EN: 'Endangered', VU: 'Vulnerable', NT: 'Near Threatened' };
 
         map.on('click', 'animals-labels', (e) => {
-            const { label, category_iucn, taxon_class, taxon_group, popularity, wiki_title, wiki_project, wiki_url, image_url, image_source } = e.features[0].properties;
+            const {
+                label, category_iucn, taxon_class, taxon_group, popularity,
+                wiki_title, wiki_project, wiki_url, image_url, image_source,
+                population_trend, number_of_mature_individuals
+            } = e.features[0].properties;
             const coords = e.features[0].geometry.coordinates;
             const color = neonColor[category_iucn] || '#fff';
             const speciesLabel = String(label || 'Unknown species');
@@ -590,6 +661,12 @@
                 <img class="popup-species-image" src="${escapeHtml(safeImageUrl)}" alt="${escapeHtml(speciesLabel)}" loading="lazy" onerror="this.remove()">
             ` : '';
             const imageSourceHtml = safeImageUrl && image_source ? `<span class="popup-image-source">Image: ${escapeHtml(image_source)}</span>` : '';
+            const populationTrendHtml = hasDisplayValue(population_trend)
+                ? `<span style="color:rgba(255,255,255,0.7)">Population trend: ${escapeHtml(formatDataValue(population_trend))}</span><br>`
+                : '';
+            const matureIndividualsHtml = hasDisplayValue(number_of_mature_individuals)
+                ? `<span style="color:rgba(255,255,255,0.7)">Mature individuals: ${escapeHtml(formatDataValue(number_of_mature_individuals))}</span><br>`
+                : '';
             popup.setLngLat(coords).setHTML(`
                 ${imageHtml}
                 <b style="font-size:14px">
@@ -597,6 +674,8 @@
                 </b><br>
                 <span style="color:${color}; font-weight:bold">&#9679; ${escapeHtml(category_iucn)}</span> — ${escapeHtml(categoryLabel[category_iucn] || 'Unknown category')}<br>
                 <span style="color:rgba(255,255,255,0.78)">${escapeHtml(taxon_group || 'Unknown animal group')}${taxon_class ? ` (${escapeHtml(taxon_class)})` : ''}</span><br>
+                ${populationTrendHtml}
+                ${matureIndividualsHtml}
                 <span style="color:rgba(255,255,255,0.6); font-size:11px">Wikipedia views/yr: ${formattedPopularity}</span>
                 ${imageSourceHtml}
             `).addTo(map);
