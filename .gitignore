@@ -2,6 +2,7 @@
 /data/shapefiles/
 /data/processed/
 /data/cache/
+/data/secrets/
 animals-spatial.geojson
 __pycache__/
 *.pyc

@@ -48,10 +48,90 @@
             max-width: 240px; z-index: 10;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
         }
+        .menu-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
         #menu h2 { margin: 0 0 10px; font-size: 16px; font-weight: 700; }
+        .menu-toggle {
+            display: none;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.9);
+            font: 700 11px/1 'Open Sans', sans-serif;
+            padding: 8px 10px;
+            cursor: pointer;
+        }
+        .menu-body { display: block; }
         #menu p { color: rgba(255, 255, 255, 0.7); line-height: 1.6; margin: 0 0 15px; }
         #menu a { color: #FF944D; text-decoration: none; font-weight: 600; }
         #menu a:hover { text-decoration: underline; }
+        .text-link {
+            appearance: none;
+            border: 0;
+            padding: 0;
+            background: transparent;
+            color: #FF944D;
+            font: inherit;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .text-link:hover { text-decoration: underline; }
+        .menu-viewport {
+            overflow: hidden;
+        }
+        .menu-track {
+            display: flex;
+            width: 200%;
+            transition: transform 220ms ease;
+        }
+        #menu.show-details .menu-track {
+            transform: translateX(-50%);
+        }
+        .menu-view {
+            box-sizing: border-box;
+            flex: 0 0 50%;
+            max-width: 50%;
+            min-width: 0;
+            overflow-wrap: break-word;
+        }
+        .menu-view + .menu-view {
+            padding-left: 20px;
+        }
+        .details-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .details-back {
+            appearance: none;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.86);
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            font: 700 17px/1 'Open Sans', sans-serif;
+        }
+        .details-title {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 13px;
+            font-weight: 700;
+        }
+        .details-copy {
+            max-height: min(62vh, 520px);
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+        .details-copy p {
+            margin-bottom: 10px;
+        }
         .data-credit {
             display: block;
             margin-top: 10px;
@@ -79,6 +159,20 @@
             color: rgba(255, 255, 255, 0.85);
         }
         .filter-group input[type="checkbox"] { cursor: pointer; accent-color: #FF6B00; margin: 0; }
+        .random-species-button {
+            width: 100%;
+            margin-top: 15px;
+            border: 1px solid rgba(255, 148, 77, 0.36);
+            border-radius: 8px;
+            background: rgba(255, 148, 77, 0.12);
+            color: rgba(255, 255, 255, 0.9);
+            font: 700 12px/1 'Open Sans', sans-serif;
+            padding: 10px 12px;
+            cursor: pointer;
+        }
+        .random-species-button:hover {
+            background: rgba(255, 148, 77, 0.18);
+        }
 
         .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .dot-all { background: #ffffff; }
@@ -109,12 +203,69 @@
             margin: 0 0 10px;
             background: rgba(255, 255, 255, 0.08);
         }
+        .popup-species-image.is-portrait {
+            width: auto;
+            max-width: 100%;
+            height: clamp(180px, 42vh, 260px);
+            margin-left: auto;
+            margin-right: auto;
+        }
         .popup-image-source {
             display: block;
             margin-top: 4px;
             color: rgba(255, 255, 255, 0.46);
             font-size: 10px;
             line-height: 1.3;
+        }
+        .popup-image-source a {
+            color: inherit;
+            text-decoration: underline;
+            text-decoration-color: rgba(255, 255, 255, 0.25);
+        }
+
+        @media (max-width: 700px) {
+            #menu {
+                top: 10px; left: 10px; right: 10px;
+                max-width: none;
+                padding: 10px 12px;
+                border-radius: 10px;
+                font-size: 11px;
+                max-height: calc(100vh - 20px);
+                overflow: hidden;
+            }
+            #menu h2 {
+                margin: 0;
+                font-size: 14px;
+            }
+            .menu-toggle { display: inline-flex; }
+            #menu.menu-collapsed .menu-body { display: none; }
+            #menu:not(.menu-collapsed) .menu-body {
+                display: block;
+                max-height: min(68vh, 520px);
+                overflow-y: auto;
+                padding: 10px 2px 2px 0;
+            }
+            #menu p {
+                margin-bottom: 10px;
+                font-size: 11px;
+                line-height: 1.45;
+            }
+            .data-credit { font-size: 9px; }
+            .filter-group {
+                gap: 7px;
+                padding-top: 10px;
+            }
+            .filter-group + .filter-group { margin-top: 10px; }
+            .filter-title { font-size: 9px; }
+            .filter-group label {
+                min-height: 24px;
+                gap: 8px;
+                font-size: 11px;
+            }
+            .menu-view + .menu-view { padding-left: 12px; }
+            .maplibregl-popup-content {
+                max-width: calc(100vw - 36px);
+            }
         }
     </style>
 </head>
@@ -126,36 +277,63 @@
     <div id="map"></div>
     <div id="globe-overlay"></div>
 
-    <div id="menu">
-        <h2>An Endangered Globe</h2>
-        <p>
-            Mapping threatened animal species using
-            <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer">IUCN Red List</a>
-            and <a href="https://www.birdlife.org/" target="_blank" rel="noopener noreferrer">BirdLife International</a> data.
-            Sized by Wikipedia popularity (annual pageviews) — zoom in to reveal rarer species.<br><br>
-            Made by <a href="https://github.com/tdemareuil/endangered-globe" target="_blank" rel="noopener noreferrer">Thomas de Mareuil</a>.
-            Inspired by <a href="https://tjukanovt.github.io/notable-people" target="_blank" rel="noopener noreferrer">Notable People</a> by Topi Tjukanov.
-            <span class="data-credit">
-                Spatial data: IUCN 2025. The IUCN Red List of Threatened Species. Version 2025-2.
-                <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer">https://www.iucnredlist.org</a>.
-                Downloaded on 14 June 2026. Data last updated 10 October 2025.
-            </span>
-        </p>
-        <div class="filter-group" data-filter-group="threat">
-            <div class="filter-title">Threat level</div>
-            <label><input type="checkbox" name="threat-filter" value="all" checked><span class="dot dot-all"></span> All statuses</label>
-            <label><input type="checkbox" name="threat-filter" value="EW"><span class="dot dot-ew"></span> EW — Extinct in the Wild</label>
-            <label><input type="checkbox" name="threat-filter" value="CR"><span class="dot dot-cr"></span> CR — Critically Endangered</label>
-            <label><input type="checkbox" name="threat-filter" value="EN"><span class="dot dot-en"></span> EN — Endangered</label>
-            <label><input type="checkbox" name="threat-filter" value="VU"><span class="dot dot-vu"></span> VU — Vulnerable</label>
-            <label><input type="checkbox" name="threat-filter" value="NT"><span class="dot dot-nt"></span> NT — Near Threatened</label>
+    <div id="menu" class="menu-collapsed">
+        <div class="menu-header">
+            <h2>An Endangered Globe</h2>
+            <button id="menu-toggle" class="menu-toggle" type="button" aria-controls="menu-body" aria-expanded="false">Menu</button>
         </div>
-        <div class="filter-group" data-filter-group="animal">
-            <div class="filter-title">Animal group</div>
-            <label><input type="checkbox" name="animal-filter" value="all" checked><span class="dot dot-all"></span> All animals</label>
-            <label><input type="checkbox" name="animal-filter" value="Mammals"><span class="dot dot-group"></span> Mammals</label>
-            <label><input type="checkbox" name="animal-filter" value="Birds"><span class="dot dot-group"></span> Birds</label>
-            <label><input type="checkbox" name="animal-filter" value="Other (Reptiles, Amphibians)"><span class="dot dot-group"></span> Other (Reptiles, Amphibians)</label>
+        <div id="menu-body" class="menu-body">
+            <div class="menu-viewport">
+                <div class="menu-track">
+                    <div class="menu-view">
+                        <p>
+                            Mapping threatened animal species using
+                            <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer">IUCN Red List</a>
+                            and <a href="https://www.birdlife.org/" target="_blank" rel="noopener noreferrer">BirdLife International</a> data.
+                            Sized by Wikipedia popularity (annual pageviews) — zoom in to reveal rarer species.
+                            More details <button id="details-open" class="text-link" type="button">here</button>.<br><br>
+                            Made by <a href="https://github.com/tdemareuil/endangered-globe" target="_blank" rel="noopener noreferrer">Thomas de Mareuil</a>.
+                            Inspired by <a href="https://tjukanovt.github.io/notable-people" target="_blank" rel="noopener noreferrer">Notable People</a> by Topi Tjukanov.
+                        </p>
+                        <div class="filter-group" data-filter-group="threat">
+                            <div class="filter-title">Threat level</div>
+                            <label><input type="checkbox" name="threat-filter" value="all" checked><span class="dot dot-all"></span> All statuses</label>
+                            <label><input type="checkbox" name="threat-filter" value="EW"><span class="dot dot-ew"></span> EW — Extinct in the Wild</label>
+                            <label><input type="checkbox" name="threat-filter" value="CR"><span class="dot dot-cr"></span> CR — Critically Endangered</label>
+                            <label><input type="checkbox" name="threat-filter" value="EN"><span class="dot dot-en"></span> EN — Endangered</label>
+                            <label><input type="checkbox" name="threat-filter" value="VU"><span class="dot dot-vu"></span> VU — Vulnerable</label>
+                            <label><input type="checkbox" name="threat-filter" value="NT"><span class="dot dot-nt"></span> NT — Near Threatened</label>
+                        </div>
+                        <div class="filter-group" data-filter-group="animal">
+                            <div class="filter-title">Animal group</div>
+                            <label><input type="checkbox" name="animal-filter" value="all" checked><span class="dot dot-all"></span> All animals</label>
+                            <label><input type="checkbox" name="animal-filter" value="Mammals"><span class="dot dot-group"></span> Mammals</label>
+                            <label><input type="checkbox" name="animal-filter" value="Birds"><span class="dot dot-group"></span> Birds</label>
+                            <label><input type="checkbox" name="animal-filter" value="Other (Reptiles, Amphib., Crust.)"><span class="dot dot-group"></span> Other (Reptiles, Amphib., Crust.)</label>
+                            <label><input type="checkbox" name="animal-filter" value="Fish (sharks, freshwater)"><span class="dot dot-group"></span> Fish (sharks, freshwater)</label>
+                        </div>
+                        <button id="random-species-button" class="random-species-button" type="button">Zoom on a random species</button>
+                    </div>
+                    <div class="menu-view">
+                        <div class="details-header">
+                            <button id="details-back" class="details-back" type="button" aria-label="Back to filters">&larr;</button>
+                            <div class="details-title">Method</div>
+                        </div>
+                        <div class="details-copy">
+                            <p>The dataset starts from the latest global IUCN Red List assessments for the animal groups currently covered by the project. Threat categories and taxonomic groups are kept from the assessment data, with a simplified display group added for the browser.</p>
+                            <p>Spatial placement uses IUCN and BirdLife range data matched by taxon ID. For each taxon, usable range records are selected by presence status, nearby fragments are clustered, and representative label points are computed from the selected geometry.</p>
+                            <p>Species with large disconnected ranges can receive several label points, but secondary clusters are kept only when they represent enough of the total mapped range.</p>
+                            <p>Name size and weight come from Wikipedia pageviews over the last completed year. More-viewed animals appear earlier; zooming in reveals less-viewed species.</p>
+                            <p>Photos and article links come from Wikidata first, then Wikipedia and Wikimedia Commons fallbacks when available.</p>
+                            <span class="data-credit">
+                                Spatial data: IUCN 2025. The IUCN Red List of Threatened Species. Version 2025-2.
+                                <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer">https://www.iucnredlist.org</a>.
+                                Downloaded on 14 June 2026. Data last updated 10 October 2025.
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -178,14 +356,65 @@
                 { type: 'Feature', geometry: { type: 'Point', coordinates: [15.0, 20.0] },    properties: { label: 'Scimitar Oryx',         category_iucn: 'EW', taxon_class: 'Mammalia', taxon_group: 'Mammals', popularity: 480000 } },
                 { type: 'Feature', geometry: { type: 'Point', coordinates: [167.0, -46.0] },  properties: { label: 'Kakapo',                category_iucn: 'CR', taxon_class: 'Aves', taxon_group: 'Birds', popularity: 760000 } },
                 { type: 'Feature', geometry: { type: 'Point', coordinates: [125.0, 8.0] },    properties: { label: 'Philippine Eagle',      category_iucn: 'CR', taxon_class: 'Aves', taxon_group: 'Birds', popularity: 620000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [121.0, -8.5] },   properties: { label: 'Komodo Dragon',         category_iucn: 'EN', taxon_class: 'Reptilia', taxon_group: 'Other (Reptiles, Amphibians)', popularity: 1800000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [-62.0, 14.0] },   properties: { label: 'Hawksbill Turtle',      category_iucn: 'CR', taxon_class: 'Reptilia', taxon_group: 'Other (Reptiles, Amphibians)', popularity: 540000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [-99.0, 19.4] },   properties: { label: 'Axolotl',               category_iucn: 'CR', taxon_class: 'Amphibia', taxon_group: 'Other (Reptiles, Amphibians)', popularity: 2600000 } },
-                { type: 'Feature', geometry: { type: 'Point', coordinates: [-75.0, 5.0] },    properties: { label: 'Golden Poison Frog',    category_iucn: 'EN', taxon_class: 'Amphibia', taxon_group: 'Other (Reptiles, Amphibians)', popularity: 510000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [121.0, -8.5] },   properties: { label: 'Komodo Dragon',         category_iucn: 'EN', taxon_class: 'Reptilia', taxon_group: 'Other (Reptiles, Amphib., Crust.)', popularity: 1800000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-62.0, 14.0] },   properties: { label: 'Hawksbill Turtle',      category_iucn: 'CR', taxon_class: 'Reptilia', taxon_group: 'Other (Reptiles, Amphib., Crust.)', popularity: 540000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-99.0, 19.4] },   properties: { label: 'Axolotl',               category_iucn: 'CR', taxon_class: 'Amphibia', taxon_group: 'Other (Reptiles, Amphib., Crust.)', popularity: 2600000 } },
+                { type: 'Feature', geometry: { type: 'Point', coordinates: [-75.0, 5.0] },    properties: { label: 'Golden Poison Frog',    category_iucn: 'EN', taxon_class: 'Amphibia', taxon_group: 'Other (Reptiles, Amphib., Crust.)', popularity: 510000 } },
             ]
         };
 
         let animals = fallbackAnimals;
+        const menuPanel = document.getElementById('menu');
+        const menuToggle = document.getElementById('menu-toggle');
+        const detailsOpen = document.getElementById('details-open');
+        const detailsBack = document.getElementById('details-back');
+        const randomSpeciesButton = document.getElementById('random-species-button');
+        const mobileMenuQuery = window.matchMedia('(max-width: 700px)');
+
+        function updateMenuToggleLabel() {
+            if (!menuPanel || !menuToggle) return;
+            const isCollapsed = mobileMenuQuery.matches && menuPanel.classList.contains('menu-collapsed');
+            menuToggle.setAttribute('aria-expanded', String(!isCollapsed));
+            menuToggle.textContent = isCollapsed ? 'Menu' : 'Hide';
+        }
+
+        function syncMenuWithViewport() {
+            if (!menuPanel) return;
+            if (mobileMenuQuery.matches) {
+                menuPanel.classList.add('menu-collapsed');
+            } else {
+                menuPanel.classList.remove('menu-collapsed');
+            }
+            updateMenuToggleLabel();
+        }
+
+        if (menuToggle) {
+            menuToggle.addEventListener('click', () => {
+                menuPanel.classList.toggle('menu-collapsed');
+                updateMenuToggleLabel();
+            });
+        }
+        if (mobileMenuQuery.addEventListener) {
+            mobileMenuQuery.addEventListener('change', syncMenuWithViewport);
+        } else {
+            mobileMenuQuery.addListener(syncMenuWithViewport);
+        }
+        syncMenuWithViewport();
+
+        function showMenuDetails(showDetails) {
+            if (!menuPanel) return;
+            menuPanel.classList.toggle('show-details', showDetails);
+        }
+
+        if (detailsOpen) {
+            detailsOpen.addEventListener('click', () => showMenuDetails(true));
+        }
+        if (detailsBack) {
+            detailsBack.addEventListener('click', () => showMenuDetails(false));
+        }
+        if (randomSpeciesButton) {
+            randomSpeciesButton.addEventListener('click', zoomOnRandomSpecies);
+        }
 
         async function loadAnimals() {
             try {
@@ -373,6 +602,53 @@
             animalLayerIds.forEach(layerId => map.setFilter(layerId, filter));
         }
 
+        function featureMatchesCurrentFilters(feature) {
+            const props = feature.properties || {};
+            if (selectedThreats.size && !selectedThreats.has(props.category_iucn)) return false;
+            if (selectedAnimalGroups.size && !selectedAnimalGroups.has(props.taxon_group)) return false;
+            return true;
+        }
+
+        function getRandomSpeciesFeature() {
+            const species = new Map();
+            (animals.features || []).forEach((feature, index) => {
+                const coords = feature.geometry && feature.geometry.coordinates;
+                if (!Array.isArray(coords) || coords.length < 2) return;
+                if (!Number.isFinite(Number(coords[0])) || !Number.isFinite(Number(coords[1]))) return;
+                if (!featureMatchesCurrentFilters(feature)) return;
+                const props = feature.properties || {};
+                if (!safeExternalUrl(props.image_url)) return;
+                const key = String(props.taxonid || props.label || index);
+                if (!species.has(key)) species.set(key, []);
+                species.get(key).push(feature);
+            });
+            const groups = Array.from(species.values());
+            if (!groups.length) return null;
+            const group = groups[Math.floor(Math.random() * groups.length)];
+            return group[Math.floor(Math.random() * group.length)];
+        }
+
+        function zoomOnRandomSpecies() {
+            const feature = getRandomSpeciesFeature();
+            if (!feature) return;
+            const [lng, lat] = feature.geometry.coordinates.map(Number);
+            const duration = 4600;
+            let opened = false;
+            const openPopup = () => {
+                if (opened) return;
+                opened = true;
+                showSpeciesPopup(feature);
+            };
+            map.once('moveend', openPopup);
+            setTimeout(openPopup, duration * 0.42);
+            map.flyTo({
+                center: [lng, lat],
+                zoom: Math.max(map.getZoom(), 4.6),
+                duration,
+                essential: true
+            });
+        }
+
         function setupMultiSelectFilter(inputName, selectedSet, onUpdate) {
             const inputs = Array.from(document.querySelectorAll(`input[name="${inputName}"]`));
             const allInput = inputs.find(input => input.value === 'all');
@@ -432,11 +708,27 @@
             return url.replace(/^http:/i, 'https:');
         }
 
+        function wikidataUrlFromTaxonId(taxonid) {
+            const id = String(taxonid || '').trim();
+            if (!id) return '';
+            return `https://www.wikidata.org/w/index.php?search=${encodeURIComponent(`haswbstatement:P627=${id}`)}`;
+        }
+
         function wikipediaUrlFromProject(project, title) {
             const wikiProject = String(project || 'en.wikipedia.org').trim();
             const pageTitle = String(title || '').trim().replace(/\s+/g, '_');
             if (!/^[a-z0-9.-]+\.wikipedia\.org$/i.test(wikiProject) || !pageTitle) return '';
             return `https://${wikiProject}/wiki/${encodeURIComponent(pageTitle)}`;
+        }
+
+        function normalizeAnimalGroups(featureCollection) {
+            (featureCollection.features || []).forEach(feature => {
+                const props = feature.properties || {};
+                if (props.taxon_group === 'Other (Reptiles, Amphibians)') {
+                    props.taxon_group = 'Other (Reptiles, Amphib., Crust.)';
+                }
+            });
+            return featureCollection;
         }
 
         function paintGlobeStyleLayers() {
@@ -571,7 +863,7 @@
         }, { passive: true });
 
         map.on('load', async () => {
-            animals = await loadAnimals();
+            animals = normalizeAnimalGroups(await loadAnimals());
             const popularityQuartiles = getPopularityQuartiles(animals);
             map.addSource('animals', { type: 'geojson', data: animals });
 
@@ -608,11 +900,11 @@
                     ],
                     'text-allow-overlap': false,
                     'text-ignore-placement': false,
-                    'text-size': [
-                        'interpolate', ['linear'], ['zoom'],
-                        0,  ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 8,  10000000, 11],
-                        8,  ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 10, 10000000, 14],
-                        14, ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 12, 10000000, 16]
+                        'text-size': [
+                            'interpolate', ['linear'], ['zoom'],
+                        0,  ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 7,  10000000, 10],
+                        8,  ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 9,  10000000, 12],
+                        14, ['interpolate', ['exponential', 1.4], ['to-number', ['get', 'popularity'], 0], 100000, 10, 10000000, 12]
                     ],
                     'text-offset': [0, 0.8]
                 },
@@ -644,13 +936,17 @@
         const neonColor    = { EW: '#CC77FF', CR: '#8F102A', EN: '#E32636', VU: '#FF944D', NT: '#FFE64D' };
         const categoryLabel = { EW: 'Extinct in the Wild', CR: 'Critically Endangered', EN: 'Endangered', VU: 'Vulnerable', NT: 'Near Threatened' };
 
-        map.on('click', 'animals-labels', (e) => {
+        function showSpeciesPopup(feature) {
+            if (!feature) return;
             const {
-                label, category_iucn, taxon_class, taxon_group, popularity,
+                taxonid, label, category_iucn, taxon_class, taxon_group, popularity,
                 wiki_title, wiki_project, wiki_url, image_url, image_source,
+                wikidata_url, wikidata_image_url, wikipedia_thumbnail_url, commons_image_url, commons_image_page_url,
+                iucn_assessment_url,
                 population_trend, number_of_mature_individuals
-            } = e.features[0].properties;
-            const coords = e.features[0].geometry.coordinates;
+            } = feature.properties || {};
+            const coords = feature.geometry && feature.geometry.coordinates;
+            if (!Array.isArray(coords) || coords.length < 2) return;
             const color = neonColor[category_iucn] || '#fff';
             const speciesLabel = String(label || 'Unknown species');
             const wikiHref = safeExternalUrl(wiki_url) || wikipediaUrlFromProject(wiki_project, wiki_title || speciesLabel);
@@ -658,9 +954,23 @@
             const formattedPopularity = Number.isFinite(popularityNumber) ? popularityNumber.toLocaleString() : 'n/a';
             const safeImageUrl = safeExternalUrl(image_url);
             const imageHtml = safeImageUrl ? `
-                <img class="popup-species-image" src="${escapeHtml(safeImageUrl)}" alt="${escapeHtml(speciesLabel)}" loading="lazy" onerror="this.remove()">
+                <img class="popup-species-image" src="${escapeHtml(safeImageUrl)}" alt="${escapeHtml(speciesLabel)}" loading="lazy" onload="if (this.naturalHeight > this.naturalWidth) this.classList.add('is-portrait')" onerror="this.remove()">
             ` : '';
-            const imageSourceHtml = safeImageUrl && image_source ? `<span class="popup-image-source">Image: ${escapeHtml(image_source)}</span>` : '';
+            const imageCreditUrl = safeExternalUrl(commons_image_page_url)
+                || safeExternalUrl(commons_image_url)
+                || safeExternalUrl(wikidata_image_url)
+                || safeExternalUrl(wikipedia_thumbnail_url)
+                || safeImageUrl;
+            const wikidataHref = safeExternalUrl(wikidata_url) || wikidataUrlFromTaxonId(taxonid);
+            const iucnHref = safeExternalUrl(iucn_assessment_url);
+            const sourceLinks = [
+                iucnHref ? `<a href="${escapeHtml(iucnHref)}" target="_blank" rel="noopener noreferrer">IUCN</a>` : '',
+                wikidataHref ? `<a href="${escapeHtml(wikidataHref)}" target="_blank" rel="noopener noreferrer">Wikidata</a>` : '',
+                imageCreditUrl ? `<a href="${escapeHtml(imageCreditUrl)}" target="_blank" rel="noopener noreferrer">Image</a>` : '',
+            ].filter(Boolean).join(' <span aria-hidden="true">|</span> ');
+            const imageSourceHtml = sourceLinks
+                ? `<span class="popup-image-source">${sourceLinks}</span>`
+                : '';
             const populationTrendHtml = hasDisplayValue(population_trend)
                 ? `<span style="color:rgba(255,255,255,0.7)">Population trend: ${escapeHtml(formatDataValue(population_trend))}</span><br>`
                 : '';
@@ -679,6 +989,10 @@
                 <span style="color:rgba(255,255,255,0.6); font-size:11px">Wikipedia views/yr: ${formattedPopularity}</span>
                 ${imageSourceHtml}
             `).addTo(map);
+        }
+
+        map.on('click', 'animals-labels', (e) => {
+            showSpeciesPopup(e.features && e.features[0]);
         });
 
         map.on('mouseenter', 'animals-labels', () => { map.getCanvas().style.cursor = 'pointer'; });

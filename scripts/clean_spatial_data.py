@@ -23,6 +23,9 @@ CLASS_PATTERNS = {
     "Mammalia": ["MAMMALS/*.shp"],
     "Reptilia": ["REPTILES/*.shp"],
     "Amphibia": ["AMPHIBIANS/*.shp"],
+    "Malacostraca": ["FW_CRABS/*.shp", "FW_CRAYFISH/*.shp", "FW_SHRIMPS/*.shp", "LOBSTERS/*.shp"],
+    "Actinopterygii": ["FW_FISH/*.shp"],
+    "Chondrichthyes": ["SHARKS_RAYS_CHIMAERAS/*.shp"],
     "Aves": ["BIRDS/*.shp"],
 }
 

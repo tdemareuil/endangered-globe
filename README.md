@@ -40,24 +40,36 @@ The project combines IUCN, Wikidata, and Wikimedia data through four technical c
 ### Channel 1 — IUCN Red List API
 What we take: latest global assessments, taxonomic class, species IDs, scientific names, common names, official threat status, population trend, number of mature individuals when available, estimated area of occupancy, estimated extent of occurrence, assessment date/year, citation URL, and whether IUCN has range/point spatial data for the assessment.
 
-The notebook uses the currently recommended and documented API v4 flow: query minimal assessments by taxonomy, then fetch full assessment data only for the candidate assessments. Sample mode uses the same path but only fetches 20 mammals; full mode keeps the complete configured animal scope.
+The notebook uses the currently recommended and documented API v4 flow: query minimal assessments by taxonomy, then fetch full assessment data only for the candidate assessments. Sample mode uses the same path but only fetches a small mammal set configured by `SAMPLE_LIMIT`.
 
-The API fetch is rank-aware but not rank-exclusive: it keeps the IUCN taxon rank in `taxon_rank`. When fetched infrarank rows exist for a parent species, the notebook removes the parent species and displays the infrarank rows instead. When a species mentions infrarank children but those children are not present in the fetched assessments, the species is kept and the notebook logs that case.
+The IUCN API token is not stored in the notebook. Set it with the `IUCN_TOKEN` environment variable, or put it in the local ignored file `data/secrets/iucn_token.txt`.
 
-Default displayed animal groups:
+Available run modes:
+- `sample` — small Mammalia run for fast iteration.
+- `full_mammals` — all selected Mammalia assessments.
+- `full_other` — selected Reptilia, Amphibia, and Malacostraca assessments in one run.
+- `full_fish` — selected freshwater fish plus sharks/rays/chimaeras in one run.
+
+The API fetch is rank-aware but not rank-exclusive: it keeps the IUCN taxon rank in `taxon_rank`. When fetched infrarank rows exist for a parent species and at least one infrarank has a globe-visible category, the notebook removes the parent species and displays the infrarank rows instead. When a species mentions infrarank children but no fetched/displayable child has a category used by the globe, the parent species is kept.
+
+Current displayed animal groups:
 - Mammals
-- Birds
-- Other (Reptiles, Amphibians)
+- Other (Reptiles, Amphib., Crust.)
+- Fish (sharks, freshwater)
 
-Underlying IUCN classes queried:
+The HTML also has a Birds filter ready, but birds are handled later because their spatial source needs a separate pass.
+
+Underlying IUCN classes used by the current notebook modes:
 - `Mammalia`
-- `Aves`
 - `Reptilia`
 - `Amphibia`
+- `Malacostraca`
+- `Actinopterygii`
+- `Chondrichthyes`
 
-The pipeline keeps the original class in `taxon_class` and derives the UI-facing `taxon_group` through `TAXON_GROUP_MAP`, so the display grouping can be changed later without re-querying or losing taxonomic granularity.
+The pipeline keeps the original class in `taxon_class` and derives the UI-facing `taxon_group` through `TAXON_GROUP_MAP`, so the display grouping can be changed later without re-querying or losing taxonomic granularity. `Malacostraca` is grouped into Other; `Actinopterygii` and `Chondrichthyes` are grouped into Fish for the current spatial packages.
 
-Excluded by default: fish, plants, fungi, corals, molluscs, most other invertebrates, and insects. Fish are temporarily excluded because the IUCN spatial source splits them across many shapefiles and subcategories that need a separate pass. Insects are not included in final mode by default because the API can filter `Insecta`, but not "large insects" specifically, so it would add a lot of low-signal API calls.
+Excluded by default: plants, fungi, corals, molluscs, most other invertebrates beyond the selected crustacean packages, marine bony fish outside the current freshwater package, and insects. Insects are not included in final mode by default because the API can filter `Insecta`, but not "large insects" specifically, so it would add a lot of low-signal API calls.
 
 Included Red List categories:
 - **EW** — Extinct in the Wild (surviving only in captivity or cultivation)
@@ -69,9 +81,41 @@ Included Red List categories:
 ### Channel 2 — IUCN Spatial Data
 What we take: geographic boundaries and source spatial geometries for species habitats. The API assessment detail tells us whether range polygons or points exist; the actual geometries are read from local IUCN shapefiles.
 
-Local spatial downloads live in `data/shapefiles/` and are ignored by git. The mammal download is split into `MAMMALS_PART1.shp` and `MAMMALS_PART2.shp`; these are two chunks of the same polygon dataset and should be concatenated. Match spatial records to API rows with `id_no == taxonid`. Do not match on `assessment_id`.
+Local spatial downloads live in `data/shapefiles/` and are ignored by git. The cleaning script chooses source folders from the current target table's `taxon_class`:
+
+- `Mammalia` → `data/shapefiles/MAMMALS/*.shp`
+- `Reptilia` → `data/shapefiles/REPTILES/*.shp`
+- `Amphibia` → `data/shapefiles/AMPHIBIANS/*.shp`
+- `Malacostraca` → `data/shapefiles/FW_CRABS/*.shp`, `FW_CRAYFISH/*.shp`, `FW_SHRIMPS/*.shp`, `LOBSTERS/*.shp`
+- `Actinopterygii` → `data/shapefiles/FW_FISH/*.shp`
+- `Chondrichthyes` → `data/shapefiles/SHARKS_RAYS_CHIMAERAS/*.shp`
+
+Spatial download coverage log for IUCN spatial-download categories. Keep this ledger in sync with the official [IUCN spatial data download page](https://www.iucnredlist.org/resources/spatial-data-download) whenever a new package is downloaded or wired into the pipeline.
+
+| IUCN spatial category / local folder | Status | API class used | UI group | Run mode | Notes |
+|---|---|---|---|---|---|
+| Mammals / `MAMMALS` | Covered | `Mammalia` | Mammals | `sample`, `full_mammals` | Split files such as `MAMMALS_PART*.shp` are concatenated by the cleaning script. |
+| Birds / `BIRDS` | Downloaded, not covered yet | `Aves` | Birds | none | The HTML filter is ready, but birds need a separate pipeline pass because their spatial source/format needs more work. |
+| Amphibians / `AMPHIBIANS` | Covered | `Amphibia` | Other (Reptiles, Amphib., Crust.) | `full_other` | Grouped with reptiles and selected crustaceans in the UI. |
+| Reptiles / `REPTILES` | Covered | `Reptilia` | Other (Reptiles, Amphib., Crust.) | `full_other` | Grouped with amphibians and selected crustaceans in the UI. |
+| Freshwater crabs / `FW_CRABS` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean package. |
+| Freshwater crayfish / `FW_CRAYFISH` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean package. |
+| Freshwater shrimps / `FW_SHRIMPS` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean package. |
+| Lobsters / `LOBSTERS` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean package. |
+| Freshwater fishes / `FW_FISH` | Covered | `Actinopterygii` | Fish (sharks, freshwater) | `full_fish` | Freshwater fish package; split files such as `FW_FISH_PART*.shp` are concatenated by the cleaning script. |
+| Sharks, rays, and chimaeras / `SHARKS_RAYS_CHIMAERAS` | Covered | `Chondrichthyes` | Fish (sharks, freshwater) | `full_fish` | Cartilaginous fish package. |
+| Other fish spatial packages not listed above | Not covered | TBD | TBD | none | Kept out until the relevant folder is downloaded and mapped explicitly; this includes any marine bony-fish package outside the current freshwater fish source. |
+| Corals | Not covered | TBD | none | none | Outside the current animal-label scope. |
+| Molluscs, including cone snails or freshwater mollusc packages | Not covered | TBD | none | none | Outside the current animal-label scope. |
+| Insects and other terrestrial/freshwater arthropods not listed above | Not covered | TBD | none | none | Excluded by default because broad insect coverage would create many low-signal API calls. Add only explicit packages if needed later. |
+| Plants, including conifers, cycads, mangroves, and seagrasses | Not covered | TBD | none | none | Outside the current animal-label scope. |
+| Any other IUCN downloadable spatial category | Not covered until mapped | TBD | TBD | none | Add the folder pattern to `CLASS_PATTERNS`, add the matching API taxonomy group, choose a UI group/run mode, then document it here. |
+
+Some downloads are split into several shapefile parts, such as `MAMMALS_PART1.shp` / `MAMMALS_PART2.shp` and `FW_FISH_PART*.shp`; these are chunks of the same spatial package and should be concatenated by the cleaning script. Match spatial records to API rows with `id_no == taxonid`. Do not match on `assessment_id`.
 
 The notebook launches `scripts/clean_spatial_data.py` after the IUCN API fetch. It writes the current target taxa to `data/processed/iucn_target_taxa.csv`, filters the heavy source files once, and outputs `data/processed/iucn_spatial_clean.geojson`. `data/processed/` is also ignored by git.
+
+For infrarank taxa that have no spatial records of their own, the notebook can do a second, narrow spatial-cleaning pass for their parent species only. Those parent geometries are copied onto the displayed infrarank rows and marked with `spatial_lookup_source = parent_species`; parent species are not added as displayed taxa.
 
 Official IUCN AOO/EOO fields are kept as raw assessment attributes: `estimated_area_of_occupancy` and `estimated_extent_of_occurrence`. Polygon-derived areas are exported separately as `computed_range_area_km2` and `computed_range_component_area_km2`; these are range geometry measurements, not substitutes for IUCN AOO.
 
@@ -88,12 +132,14 @@ What we take: the translation dictionary and primary image. We query Wikidata wi
 
 Wikipedia language priority is: English, German, French, Japanese, Russian, Spanish, Italian, Chinese, Polish, Portuguese, then the first remaining Wikipedia sitelink returned by Wikidata.
 
+For infrarank taxa without a resolved Wikipedia article, the notebook makes one extra batched Wikidata lookup for the needed parent species IDs. If a parent article exists, the infrarank keeps its own IUCN identity and conservation status but inherits the parent species article, image lookup, and pageviews signal. If an infrarank has an article but still has zero pageviews or no usable image, parent species lookups are attempted only for those missing fields. Rows using parent article/pageviews are marked with `wiki_lookup_source = parent_species`.
+
 ### Channel 4 — Wikipedia Pageviews (public REST API)
 What we take: the cultural popularity score. Given the article title from Wikidata, the API returns the total view count over the past 12 months.
 
-When Wikidata has no `P18` image, the notebook queries the selected Wikipedia article's page summary and uses its thumbnail as a fallback popup image.
+When Wikidata has no `P18` image, the notebook queries the selected Wikipedia article's page summary and uses its thumbnail as a fallback popup image. If both are missing, it can search Wikimedia Commons by scientific/common name and keep attribution metadata when available.
 
-Image attribution is currently stored only as `image_source` (`Wikidata P18` or `Wikipedia thumbnail`). Before a public release, add Commons/Wikipedia image metadata if per-image author/license attribution is required.
+Image attribution fields are exported alongside `image_url`. The popup links to Wikidata, IUCN, and the image/source URL when available.
 
 ---
 
@@ -266,10 +312,10 @@ border: 1px solid rgba(255, 255, 255, 0.08);
 ## Immediate Action Plan
 
 1. **Create your IUCN account** at [iucnredlist.org](https://www.iucnredlist.org/) to get access to species geographic data (allow 24–48h for validation).
-2. **Bootstrap the Python pipeline** locally in sample mode: query the IUCN API for 20 mammals using the same downstream steps as the full run.
+2. **Bootstrap the Python pipeline** locally in sample mode: query the IUCN API for a small mammal set using the same downstream steps as the larger runs.
 3. **Wire up the Wikidata → Pageviews bridge** in Python to confirm you can generate a popularity score for those animals.
 4. **Use the generated browser dataset**: `index.html` now loads `animals.geojson`, with inline sample data kept only as a fallback.
-5. **Scale the pipeline** to the full IUCN animal dataset (EW + CR + EN + VU + NT/CD), export `animals.geojson`, and deploy to GitHub Pages.
+5. **Scale the pipeline by spatial package**: run `full_mammals`, `full_other`, then `full_fish`, export `animals.geojson`, and deploy to GitHub Pages. Birds stay separate until their spatial format is handled.
 
 ---
 
