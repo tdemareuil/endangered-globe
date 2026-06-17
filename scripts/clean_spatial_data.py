@@ -19,14 +19,17 @@ import geopandas as gpd
 import pandas as pd
 
 
-CLASS_PATTERNS = {
-    "Mammalia": ["MAMMALS/*.shp"],
-    "Reptilia": ["REPTILES/*.shp"],
-    "Amphibia": ["AMPHIBIANS/*.shp"],
-    "Malacostraca": ["FW_CRABS/*.shp", "FW_CRAYFISH/*.shp", "FW_SHRIMPS/*.shp", "LOBSTERS/*.shp"],
-    "Actinopterygii": ["FW_FISH/*.shp"],
-    "Chondrichthyes": ["SHARKS_RAYS_CHIMAERAS/*.shp"],
-    "Aves": ["BIRDS/*.shp"],
+PACKAGE_PATTERNS = {
+    "MAMMALS": ["MAMMALS/*.shp"],
+    "REPTILES": ["REPTILES/*.shp"],
+    "AMPHIBIANS": ["AMPHIBIANS/*.shp"],
+    "FW_CRABS": ["FW_CRABS/*.shp"],
+    "FW_CRAYFISH": ["FW_CRAYFISH/*.shp"],
+    "FW_SHRIMPS": ["FW_SHRIMPS/*.shp"],
+    "LOBSTERS": ["LOBSTERS/*.shp"],
+    "FW_FISH": ["FW_FISH/*.shp"],
+    "SHARKS_RAYS_CHIMAERAS": ["SHARKS_RAYS_CHIMAERAS/*.shp"],
+    "BIRDS": ["BIRDS/*.gpkg"],
 }
 
 PRESENCE_CODES = None  # Keep all presence codes; the notebook ranks them before centroid placement.
@@ -53,7 +56,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--targets", required=True, help="CSV written by the notebook with at least taxonid.")
     parser.add_argument("--input-dir", default="data/shapefiles", help="Directory containing extracted IUCN spatial files.")
     parser.add_argument("--output", default="data/processed/iucn_spatial_clean.geojson", help="Clean spatial output path.")
-    parser.add_argument("--all-shapefiles", action="store_true", help="Read every .shp under input-dir instead of class-specific folders.")
+    parser.add_argument("--all-shapefiles", action="store_true", help="Read every .shp under input-dir instead of package-specific folders.")
     return parser.parse_args()
 
 
@@ -116,27 +119,37 @@ def filter_iucn_distribution_records(gdf):
     return gdf[keep_mask].copy(), drop_reasons
 
 
-def target_classes(targets):
-    """Return taxon classes present in the notebook target table, if available."""
-    if "taxon_class" not in targets.columns:
+def target_packages(targets):
+    """Return explicit IUCN spatial packages from the target table, if available."""
+    if "spatial_package" not in targets.columns:
         return []
-    return sorted({str(value) for value in targets["taxon_class"].dropna().unique()})
+    packages = set()
+    for value in targets["spatial_package"].dropna().unique():
+        for package in str(value).split(";"):
+            package = package.strip()
+            if package:
+                packages.add(package)
+    return sorted(packages)
 
 
-def shapefile_paths(input_dir, classes, all_shapefiles=False):
-    """Resolve spatial source paths to read for the selected taxon classes."""
+def shapefile_paths(input_dir, packages, all_shapefiles=False):
+    """Resolve spatial source paths from explicit IUCN spatial packages."""
     input_dir = Path(input_dir)
-    if all_shapefiles or not classes:
+    packages = packages or []
+    if all_shapefiles:
         return sorted(str(path) for path in input_dir.glob("**/*.shp"))
+    if not packages:
+        raise ValueError("Target table must contain spatial_package values, or run with --all-shapefiles")
 
     paths = []
-    for taxon_class in classes:
-        class_paths = []
-        for pattern in CLASS_PATTERNS.get(taxon_class, []):
-            class_paths.extend(glob.glob(str(input_dir / pattern)))
-        if not class_paths:
-            print(f"Warning: no extracted shapefiles found for {taxon_class}; this class will have no spatial records")
-        paths.extend(class_paths)
+    for package in packages:
+        package_paths = []
+        for pattern in PACKAGE_PATTERNS.get(package, []):
+            package_paths.extend(glob.glob(str(input_dir / pattern)))
+        if not package_paths:
+            print(f"Warning: no extracted shapefiles found for package {package}; this package will have no spatial records")
+        paths.extend(package_paths)
+
     return sorted(set(paths))
 
 
@@ -219,14 +232,15 @@ def clean_spatial_data(targets_path, input_dir, output_path, all_shapefiles=Fals
     if not target_ids:
         raise ValueError(f"{targets_path} contains no usable taxonid values")
 
-    classes = target_classes(targets)
-    paths = shapefile_paths(input_dir, classes, all_shapefiles=all_shapefiles)
+    packages = target_packages(targets)
+    paths = shapefile_paths(input_dir, packages, all_shapefiles=all_shapefiles)
     if not paths:
-        class_text = ", ".join(classes) if classes else "all classes"
-        raise FileNotFoundError(f"No shapefiles found in {input_dir} for {class_text}")
+        source_text = ", ".join(packages) if packages else "all packages"
+        raise FileNotFoundError(f"No shapefiles found in {input_dir} for {source_text}")
 
     print(f"Target taxa: {len(target_ids):,}")
-    print(f"Taxon classes: {', '.join(classes) if classes else 'unknown/all'}")
+    if packages:
+        print(f"Spatial packages: {', '.join(packages)}")
     print(f"Spatial files: {len(paths):,}")
 
     frames = []
