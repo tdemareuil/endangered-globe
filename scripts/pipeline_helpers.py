@@ -38,6 +38,7 @@ SLEEP_IUCN = 0.5
 SPATIAL_DATA_DIR = "data/shapefiles"
 SAMPLE_LIMIT = 200
 USE_IUCN_CACHE = True
+USE_PARENT_SPATIAL_FALLBACK = False
 GLOBAL_SCOPE_CODE = 1
 IUCN_RED_LIST_VERSION = "2025-2"
 IUCN_DATASET_CITATION = ""
@@ -60,19 +61,33 @@ SPATIAL_PACKAGE_CONFIG = {
     "REPTILES": {"patterns": ["REPTILES/*.shp"], "taxon_group": OTHER_TAXON_GROUP},
     "AMPHIBIANS": {"patterns": ["AMPHIBIANS/*.shp"], "taxon_group": OTHER_TAXON_GROUP},
     "FW_CRABS": {"patterns": ["FW_CRABS/*.shp"], "taxon_group": OTHER_TAXON_GROUP},
-    "FW_CRAYFISH": {"patterns": ["FW_CRAYFISH/*.shp"], "taxon_group": OTHER_TAXON_GROUP},
+    "FW_CRAYFISH": {
+        "patterns": ["FW_CRAYFISH/*.shp"],
+        "taxon_group": OTHER_TAXON_GROUP,
+    },
     "FW_SHRIMPS": {"patterns": ["FW_SHRIMPS/*.shp"], "taxon_group": OTHER_TAXON_GROUP},
     "LOBSTERS": {"patterns": ["LOBSTERS/*.shp"], "taxon_group": OTHER_TAXON_GROUP},
     "FW_FISH": {"patterns": ["FW_FISH/*.shp"], "taxon_group": FISH_TAXON_GROUP},
-    "SHARKS_RAYS_CHIMAERAS": {"patterns": ["SHARKS_RAYS_CHIMAERAS/*.shp"], "taxon_group": FISH_TAXON_GROUP},
+    "SHARKS_RAYS_CHIMAERAS": {
+        "patterns": ["SHARKS_RAYS_CHIMAERAS/*.shp"],
+        "taxon_group": FISH_TAXON_GROUP,
+    },
     # BirdLife BOTW GPKG — single layer "all_species", taxon ID column is "sisid", no category column
     "BIRDS": {"patterns": ["BIRDS/*.gpkg"], "taxon_group": "Birds"},
 }
 
 RUN_MODE_SPATIAL_PACKAGES = {
     "sample": ["MAMMALS"],
+    "sample_birds": ["BIRDS"],
     "full_mammals": ["MAMMALS"],
-    "full_other": ["REPTILES", "AMPHIBIANS", "FW_CRABS", "FW_CRAYFISH", "FW_SHRIMPS", "LOBSTERS"],
+    "full_other": [
+        "REPTILES",
+        "AMPHIBIANS",
+        "FW_CRABS",
+        "FW_CRAYFISH",
+        "FW_SHRIMPS",
+        "LOBSTERS",
+    ],
     "full_fish": ["FW_FISH", "SHARKS_RAYS_CHIMAERAS"],
     "full_birds": ["BIRDS"],
 }
@@ -109,9 +124,40 @@ SEASONAL_LABELS = {
     5: "Seasonality Uncertain",
 }
 
-WIKIPEDIA_LANGUAGE_PRIORITY = ["en", "de", "ja", "fr", "es", "ru", "it", "zh", "pt", "pl", "nl", "uk", "ca", "sv", "cs", "fi", "ko", "tr", "no", "da", "eo"]
-WIKIPEDIA_LANGUAGE_RANK = {lang: rank for rank, lang in enumerate(WIKIPEDIA_LANGUAGE_PRIORITY)}
-WIKIDATA_FIELDS = ["wiki_title", "wiki_language", "wiki_project", "wiki_url", "wikidata_url", "wikidata_image_url"]
+WIKIPEDIA_LANGUAGE_PRIORITY = [
+    "en",
+    "de",
+    "ja",
+    "fr",
+    "es",
+    "ru",
+    "it",
+    "zh",
+    "pt",
+    "pl",
+    "nl",
+    "uk",
+    "ca",
+    "sv",
+    "cs",
+    "fi",
+    "ko",
+    "tr",
+    "no",
+    "da",
+    "eo",
+]
+WIKIPEDIA_LANGUAGE_RANK = {
+    lang: rank for rank, lang in enumerate(WIKIPEDIA_LANGUAGE_PRIORITY)
+}
+WIKIDATA_FIELDS = [
+    "wiki_title",
+    "wiki_language",
+    "wiki_project",
+    "wiki_url",
+    "wikidata_url",
+    "wikidata_image_url",
+]
 wikidata_map = {}
 IUCN_TAXON_ID_ENDPOINT_TEMPLATE = None
 IUCN_TAXON_ID_ENDPOINT_CANDIDATES = [
@@ -146,7 +192,9 @@ def require_iucn_token():
     """Return the configured IUCN token, or stop early with a setup error."""
     token = (IUCN_TOKEN or "").strip()
     if not token or token == "YOUR_TOKEN_HERE":
-        raise RuntimeError("Set IUCN_TOKEN in the notebook or export it as an environment variable before querying IUCN.")
+        raise RuntimeError(
+            "Set IUCN_TOKEN in the notebook or export it as an environment variable before querying IUCN."
+        )
     return token
 
 
@@ -246,7 +294,11 @@ def bool_or_none(value):
 
 def taxon_class_from_detail(detail):
     """Extract the raw IUCN taxonomic class from an assessment detail for metadata/debugging."""
-    taxon = detail.get("taxon") if isinstance(detail, dict) and isinstance(detail.get("taxon"), dict) else {}
+    taxon = (
+        detail.get("taxon")
+        if isinstance(detail, dict) and isinstance(detail.get("taxon"), dict)
+        else {}
+    )
     value = pick_path(taxon, ("class_name",), ("class",))
     if value in (None, ""):
         return None
@@ -255,8 +307,14 @@ def taxon_class_from_detail(detail):
 
 def taxon_group_from_spatial_package(spatial_package):
     """Display grouping derived from the IUCN spatial package used for the taxon."""
-    packages = [part.strip() for part in str(spatial_package or "").split(";") if part.strip()]
-    groups = [SPATIAL_PACKAGE_CONFIG[package]["taxon_group"] for package in packages if package in SPATIAL_PACKAGE_CONFIG]
+    packages = [
+        part.strip() for part in str(spatial_package or "").split(";") if part.strip()
+    ]
+    groups = [
+        SPATIAL_PACKAGE_CONFIG[package]["taxon_group"]
+        for package in packages
+        if package in SPATIAL_PACKAGE_CONFIG
+    ]
     groups = sorted(set(groups))
     if not groups:
         return "Unknown"
@@ -289,7 +347,10 @@ def join_non_empty(values, sep=";"):
 
 def spatial_category_is_displayable(value):
     """Use shapefile category as a conservative prefilter for self display rows only."""
-    categories = {normalize_category(part) for part in str(value or "").replace(",", ";").split(";")}
+    categories = {
+        normalize_category(part)
+        for part in str(value or "").replace(",", ";").split(";")
+    }
     categories.discard(None)
     if not categories:
         return True
@@ -327,43 +388,65 @@ def build_spatial_taxon_manifest(packages):
             continue
         for path in sorted(paths):
             attrs = read_shapefile_attributes(path)
-            id_col = first_existing_column(attrs.columns, ["id_no", "sisid", "taxonid", "taxon_id"])
+            id_col = first_existing_column(
+                attrs.columns, ["id_no", "sisid", "taxonid", "taxon_id"]
+            )
             if id_col is None:
                 print(f"Warning: {path} has no taxon ID column; skipped")
                 continue
-            category_col = first_existing_column(attrs.columns, ["category", "red_list_category", "rl_category", "rlcat", "status"])
-            manifest_part = pd.DataFrame({
-                "taxonid": pd.to_numeric(attrs[id_col], errors="coerce"),
-                "spatial_category": attrs[category_col].map(normalize_category) if category_col else None,
-            })
+            category_col = first_existing_column(
+                attrs.columns,
+                ["category", "red_list_category", "rl_category", "rlcat", "status"],
+            )
+            manifest_part = pd.DataFrame(
+                {
+                    "taxonid": pd.to_numeric(attrs[id_col], errors="coerce"),
+                    "spatial_category": (
+                        attrs[category_col].map(normalize_category)
+                        if category_col
+                        else None
+                    ),
+                }
+            )
             manifest_part = manifest_part[manifest_part["taxonid"].notna()].copy()
             manifest_part["taxonid"] = manifest_part["taxonid"].astype(int)
             unique_taxa = manifest_part["taxonid"].nunique()
-            kept_self = manifest_part.groupby("taxonid")["spatial_category"].agg(lambda values: spatial_category_is_displayable(join_non_empty(values))).sum()
-            for row in manifest_part.drop_duplicates(subset=["taxonid", "spatial_category"]).itertuples(index=False):
-                records.append({
-                    "taxonid": int(row.taxonid),
-                    "spatial_package": package,
-                    "spatial_category": row.spatial_category,
-                    "spatial_manifest_file": os.path.basename(path),
-                })
+            kept_self = (
+                manifest_part.groupby("taxonid")["spatial_category"]
+                .agg(
+                    lambda values: spatial_category_is_displayable(
+                        join_non_empty(values)
+                    )
+                )
+                .sum()
+            )
+            for row in manifest_part.drop_duplicates(
+                subset=["taxonid", "spatial_category"]
+            ).itertuples(index=False):
+                records.append(
+                    {
+                        "taxonid": int(row.taxonid),
+                        "spatial_package": package,
+                        "spatial_category": row.spatial_category,
+                        "spatial_manifest_file": os.path.basename(path),
+                    }
+                )
             if category_col:
                 print(
                     f"  {package}: {os.path.basename(path)} → {unique_taxa:,} unique taxon IDs; "
                     f"{int(kept_self):,} with displayable spatial category"
                 )
             else:
-                print(f"  {package}: {os.path.basename(path)} → {unique_taxa:,} unique taxon IDs; no spatial category column")
+                print(
+                    f"  {package}: {os.path.basename(path)} → {unique_taxa:,} unique taxon IDs; no spatial category column"
+                )
     if not records:
         raise RuntimeError(f"No spatial taxon IDs found for packages: {packages}")
     manifest = pd.DataFrame(records)
-    package_summary = (
-        manifest.groupby("taxonid", as_index=False)
-        .agg(
-            spatial_package=("spatial_package", join_non_empty),
-            spatial_category=("spatial_category", join_non_empty),
-            spatial_manifest_file=("spatial_manifest_file", join_non_empty),
-        )
+    package_summary = manifest.groupby("taxonid", as_index=False).agg(
+        spatial_package=("spatial_package", join_non_empty),
+        spatial_category=("spatial_category", join_non_empty),
+        spatial_manifest_file=("spatial_manifest_file", join_non_empty),
     )
     return package_summary.sort_values("taxonid").reset_index(drop=True)
 
@@ -377,8 +460,12 @@ def selected_spatial_manifest_for_run_mode(run_mode):
     full_manifest = build_spatial_taxon_manifest(packages)
     all_spatial_taxonids = set(full_manifest["taxonid"].astype(int))
 
-    displayable_mask = full_manifest["spatial_category"].map(spatial_category_is_displayable)
-    missing_category = full_manifest["spatial_category"].fillna("").astype(str).str.strip().eq("")
+    displayable_mask = full_manifest["spatial_category"].map(
+        spatial_category_is_displayable
+    )
+    missing_category = (
+        full_manifest["spatial_category"].fillna("").astype(str).str.strip().eq("")
+    )
     manifest = full_manifest[displayable_mask].copy()
     skipped = len(full_manifest) - len(manifest)
     print(
@@ -386,7 +473,7 @@ def selected_spatial_manifest_for_run_mode(run_mode):
         f"{skipped:,} skipped as non-displayable spatial categories; "
         f"{missing_category.sum():,} had no spatial category and were kept"
     )
-    if run_mode == "sample":
+    if run_mode in ("sample", "sample_birds"):
         manifest = manifest.head(SAMPLE_LIMIT).copy()
     manifest.attrs["all_spatial_taxonids"] = all_spatial_taxonids
     print(f"Spatial whitelist taxa fetched by API: {len(manifest):,}")
@@ -445,10 +532,16 @@ def extract_common_name(taxon):
     """Extract the preferred English common name from the nested taxon object."""
     if not isinstance(taxon, dict):
         return None
-    common_names = pick_path(taxon, ("common_names",), ("commonNames",), ("taxon_common_names",)) or []
+    common_names = (
+        pick_path(taxon, ("common_names",), ("commonNames",), ("taxon_common_names",))
+        or []
+    )
     if isinstance(common_names, list):
         candidates = [item for item in common_names if isinstance(item, dict)]
-        main = next((item for item in candidates if item.get("main") or item.get("primary")), None)
+        main = next(
+            (item for item in candidates if item.get("main") or item.get("primary")),
+            None,
+        )
         main = main or (candidates[0] if candidates else None)
         if main:
             return pick_path(main, ("name",), ("common_name",), ("description", "en"))
@@ -491,7 +584,9 @@ def taxon_ids_from_children(children):
     for child in children:
         if not isinstance(child, dict):
             continue
-        child_id = pick_path(child, ("sis_id",), ("sis_taxon_id",), ("taxonid",), ("id",))
+        child_id = pick_path(
+            child, ("sis_id",), ("sis_taxon_id",), ("taxonid",), ("id",)
+        )
         try:
             ids.append(int(child_id))
         except (TypeError, ValueError):
@@ -506,9 +601,13 @@ def parent_taxonid_from_taxon(taxon):
     for key in ["species_taxa", "parent_taxa", "parent_taxon"]:
         value = taxon.get(key)
         if isinstance(value, list) and value:
-            parent_id = pick_path(value[0], ("sis_id",), ("sis_taxon_id",), ("taxonid",), ("id",))
+            parent_id = pick_path(
+                value[0], ("sis_id",), ("sis_taxon_id",), ("taxonid",), ("id",)
+            )
         elif isinstance(value, dict):
-            parent_id = pick_path(value, ("sis_id",), ("sis_taxon_id",), ("taxonid",), ("id",))
+            parent_id = pick_path(
+                value, ("sis_id",), ("sis_taxon_id",), ("taxonid",), ("id",)
+            )
         else:
             parent_id = None
         try:
@@ -525,7 +624,9 @@ def replace_species_with_available_infraranks(df):
         display_category = df["category_iucn"]
     else:
         display_category = df["category"].replace("CD", "NT")
-    displayable_ids = set(df.loc[display_category.isin(display_categories), "taxonid"].astype(int))
+    displayable_ids = set(
+        df.loc[display_category.isin(display_categories), "taxonid"].astype(int)
+    )
     drop_parent_ids = set()
     species_without_displayable_children = 0
 
@@ -542,10 +643,14 @@ def replace_species_with_available_infraranks(df):
             species_without_displayable_children += 1
 
     if drop_parent_ids:
-        print(f"Species vs. subspecies selection: replacing {len(drop_parent_ids):,} parent species with fetched infrarank taxa that have an endangered category")
+        print(
+            f"Species vs. subspecies selection: replacing {len(drop_parent_ids):,} parent species with fetched infrarank taxa that have an endangered category"
+        )
         df = df[~df["taxonid"].isin(drop_parent_ids)].copy()
     if species_without_displayable_children:
-        print(f"Species vs. subspecies selection: {species_without_displayable_children:,} species list infrarank children, but no fetched/displayable child had an endangered category; parent species kept")
+        print(
+            f"Species vs. subspecies selection: {species_without_displayable_children:,} species list infrarank children, but no fetched/displayable child had an endangered category; parent species kept"
+        )
     return df
 
 
@@ -564,7 +669,11 @@ def iter_assessment_candidates(data):
         return
     if not isinstance(data, dict):
         return
-    if data.get("assessment_id") or data.get("red_list_category") or data.get("assessment"):
+    if (
+        data.get("assessment_id")
+        or data.get("red_list_category")
+        or data.get("assessment")
+    ):
         yield coerce_assessment_detail(data)
     for key in ["assessment", "latest_assessment", "latest", "data", "result"]:
         value = data.get(key)
@@ -579,15 +688,28 @@ def iter_assessment_candidates(data):
 
 def choose_latest_global_assessment(candidates):
     """Pick the latest global assessment candidate from a taxon-id lookup response."""
-    usable = [item for item in candidates if isinstance(item, dict) and (item.get("assessment_id") or item.get("id"))]
+    usable = [
+        item
+        for item in candidates
+        if isinstance(item, dict) and (item.get("assessment_id") or item.get("id"))
+    ]
     if not usable:
         return None
 
     def score(item):
         scopes = item.get("scopes") or []
-        global_scope = any(str(scope.get("code")) == str(GLOBAL_SCOPE_CODE) for scope in scopes if isinstance(scope, dict))
+        global_scope = any(
+            str(scope.get("code")) == str(GLOBAL_SCOPE_CODE)
+            for scope in scopes
+            if isinstance(scope, dict)
+        )
         latest = bool_or_none(item.get("latest")) is not False
-        return (global_scope, latest, str(item.get("assessment_date") or ""), str(item.get("year_published") or ""))
+        return (
+            global_scope,
+            latest,
+            str(item.get("assessment_date") or ""),
+            str(item.get("year_published") or ""),
+        )
 
     return sorted(usable, key=score, reverse=True)[0]
 
@@ -599,7 +721,11 @@ def fetch_latest_assessment_by_taxonid(taxonid):
     templates = []
     if IUCN_TAXON_ID_ENDPOINT_TEMPLATE:
         templates.append(IUCN_TAXON_ID_ENDPOINT_TEMPLATE)
-    templates.extend(template for template in IUCN_TAXON_ID_ENDPOINT_CANDIDATES if template not in templates)
+    templates.extend(
+        template
+        for template in IUCN_TAXON_ID_ENDPOINT_CANDIDATES
+        if template not in templates
+    )
 
     last_error = None
     for template in templates:
@@ -612,7 +738,14 @@ def fetch_latest_assessment_by_taxonid(taxonid):
         assessment = choose_latest_global_assessment(iter_assessment_candidates(data))
         if assessment:
             IUCN_TAXON_ID_ENDPOINT_TEMPLATE = template
-            if assessment.get("taxon") and assessment.get("red_list_category") and (assessment.get("documentation") or assessment.get("supplementary_info")):
+            if (
+                assessment.get("taxon")
+                and assessment.get("red_list_category")
+                and (
+                    assessment.get("documentation")
+                    or assessment.get("supplementary_info")
+                )
+            ):
                 return coerce_assessment_detail(assessment)
             assessment_id = assessment.get("assessment_id") or assessment.get("id")
             return fetch_assessment_detail(assessment_id)
@@ -621,7 +754,13 @@ def fetch_latest_assessment_by_taxonid(taxonid):
     return None
 
 
-def assessment_to_species_row(assessment, spatial_package=None, spatial_category=None, spatial_lookup_taxonid=None, spatial_lookup_source="self"):
+def assessment_to_species_row(
+    assessment,
+    spatial_package=None,
+    spatial_category=None,
+    spatial_lookup_taxonid=None,
+    spatial_lookup_source="self",
+):
     """Turn one IUCN assessment/detail into a display row, or return a skip reason."""
     assessment_id = assessment.get("assessment_id") or assessment.get("id")
     if not assessment_id:
@@ -631,7 +770,11 @@ def assessment_to_species_row(assessment, spatial_package=None, spatial_category
     except (TypeError, ValueError):
         return None, "invalid_assessment_id"
 
-    detail = assessment if isinstance(assessment, dict) and assessment.get("taxon") else fetch_assessment_detail(assessment_id)
+    detail = (
+        assessment
+        if isinstance(assessment, dict) and assessment.get("taxon")
+        else fetch_assessment_detail(assessment_id)
+    )
     if not isinstance(detail, dict) or not detail:
         return None, "empty_or_unexpected_detail"
     taxon = detail.get("taxon") if isinstance(detail.get("taxon"), dict) else {}
@@ -649,7 +792,9 @@ def assessment_to_species_row(assessment, spatial_package=None, spatial_category
     if category not in TARGET_CATEGORIES:
         return None, f"detail_category_out_of_scope:{category or 'unknown'}"
 
-    taxonid = pick_path(detail, ("sis_taxon_id",), ("taxon", "sis_id"), ("taxon", "sis_taxon_id"))
+    taxonid = pick_path(
+        detail, ("sis_taxon_id",), ("taxon", "sis_id"), ("taxon", "sis_taxon_id")
+    )
     taxonid = taxonid or assessment.get("sis_taxon_id")
     if not taxonid:
         return None, "missing_taxonid"
@@ -657,13 +802,19 @@ def assessment_to_species_row(assessment, spatial_package=None, spatial_category
         taxonid_int = int(taxonid)
     except (TypeError, ValueError):
         return None, "invalid_taxonid"
-    scientific_name = extract_scientific_name(taxon) or pick_path(detail, ("scientific_name",)) or assessment.get("taxon_scientific_name")
+    scientific_name = (
+        extract_scientific_name(taxon)
+        or pick_path(detail, ("scientific_name",))
+        or assessment.get("taxon_scientific_name")
+    )
 
     return {
         "taxonid": taxonid_int,
         "assessment_id": assessment_id_int,
-        "assessment_date": pick_path(detail, ("assessment_date",)) or assessment.get("assessment_date"),
-        "year_published": pick_path(detail, ("year_published",)) or assessment.get("year_published"),
+        "assessment_date": pick_path(detail, ("assessment_date",))
+        or assessment.get("assessment_date"),
+        "year_published": pick_path(detail, ("year_published",))
+        or assessment.get("year_published"),
         "iucn_assessment_url": pick_path(detail, ("url",)) or assessment.get("url"),
         "iucn_citation": pick_path(detail, ("citation",)) or assessment.get("citation"),
         "scientific_name": scientific_name,
@@ -672,10 +823,14 @@ def assessment_to_species_row(assessment, spatial_package=None, spatial_category
         "population_trend": extract_population_trend(detail),
         "number_of_mature_individuals": extract_number_of_mature_individuals(detail),
         "estimated_area_of_occupancy": extract_estimated_area_of_occupancy(detail),
-        "estimated_extent_of_occurrence": extract_estimated_extent_of_occurrence(detail),
+        "estimated_extent_of_occurrence": extract_estimated_extent_of_occurrence(
+            detail
+        ),
         "taxon_rank": taxon_rank_from_taxon(taxon),
         "parent_taxonid": parent_taxonid_from_taxon(taxon),
-        "child_infrarank_taxonids": taxon_ids_from_children(taxon.get("infrarank_taxa")),
+        "child_infrarank_taxonids": taxon_ids_from_children(
+            taxon.get("infrarank_taxa")
+        ),
         "taxon_class": taxon_class,
         "spatial_package": spatial_package,
         "spatial_category": spatial_category,
@@ -692,7 +847,9 @@ def fetch_iucn_species_from_spatial_manifest(manifest):
     rows = []
     seen_taxa = set()
     detail_cache = {}
-    all_spatial_taxonids = set(manifest.attrs.get("all_spatial_taxonids", set(manifest["taxonid"].astype(int))))
+    all_spatial_taxonids = set(
+        manifest.attrs.get("all_spatial_taxonids", set(manifest["taxonid"].astype(int)))
+    )
     stats = Counter()
     skip_reasons = Counter()
 
@@ -702,7 +859,13 @@ def fetch_iucn_species_from_spatial_manifest(manifest):
             detail_cache[taxonid] = fetch_latest_assessment_by_taxonid(taxonid)
         return detail_cache[taxonid]
 
-    def maybe_add_row(detail, spatial_package, spatial_category, spatial_lookup_taxonid, spatial_lookup_source):
+    def maybe_add_row(
+        detail,
+        spatial_package,
+        spatial_category,
+        spatial_lookup_taxonid,
+        spatial_lookup_source,
+    ):
         row, skip_reason = assessment_to_species_row(
             detail,
             spatial_package=spatial_package,
@@ -720,7 +883,11 @@ def fetch_iucn_species_from_spatial_manifest(manifest):
         seen_taxa.add(row["taxonid"])
         return row
 
-    for seed in tqdm(manifest.itertuples(index=False), total=len(manifest), desc="Fetch IUCN from spatial IDs"):
+    for seed in tqdm(
+        manifest.itertuples(index=False),
+        total=len(manifest),
+        desc="Fetch IUCN from spatial IDs",
+    ):
         stats["spatial_seed_taxa"] += 1
         parent_taxonid = int(seed.taxonid)
         detail = get_detail(parent_taxonid)
@@ -732,37 +899,70 @@ def fetch_iucn_species_from_spatial_manifest(manifest):
             stats["self_rows_prefiltered_by_spatial_category"] += 1
             continue
 
-        parent_row = maybe_add_row(detail, seed.spatial_package, getattr(seed, "spatial_category", None), parent_taxonid, "self")
+        parent_row = maybe_add_row(
+            detail,
+            seed.spatial_package,
+            getattr(seed, "spatial_category", None),
+            parent_taxonid,
+            "self",
+        )
         if not parent_row:
             stats["parents_not_displayable_for_child_discovery"] += 1
             continue
 
-        taxon = detail.get("taxon") if isinstance(detail.get("taxon"), dict) else {}
-        child_ids = [child_id for child_id in taxon_ids_from_children(taxon.get("infrarank_taxa")) if child_id not in all_spatial_taxonids]
-        if child_ids:
-            stats["display_parents_with_missing_spatial_children"] += 1
-        for child_id in child_ids:
-            stats["missing_spatial_child_candidates"] += 1
-            child_detail = get_detail(child_id)
-            if not child_detail:
-                skip_reasons["missing_child_assessment"] += 1
-                continue
-            added = maybe_add_row(child_detail, seed.spatial_package, getattr(seed, "spatial_category", None), parent_taxonid, "parent_species")
-            if added:
-                stats["display_children_using_parent_geometry"] += 1
+        if USE_PARENT_SPATIAL_FALLBACK:
+            taxon = detail.get("taxon") if isinstance(detail.get("taxon"), dict) else {}
+            child_ids = [
+                child_id
+                for child_id in taxon_ids_from_children(taxon.get("infrarank_taxa"))
+                if child_id not in all_spatial_taxonids
+            ]
+            if child_ids:
+                stats["display_parents_with_missing_spatial_children"] += 1
+            for child_id in child_ids:
+                stats["missing_spatial_child_candidates"] += 1
+                child_detail = get_detail(child_id)
+                if not child_detail:
+                    skip_reasons["missing_child_assessment"] += 1
+                    continue
+                added = maybe_add_row(
+                    child_detail,
+                    seed.spatial_package,
+                    getattr(seed, "spatial_category", None),
+                    parent_taxonid,
+                    "parent_species",
+                )
+                if added:
+                    stats["display_children_using_parent_geometry"] += 1
 
     if not rows:
-        raise RuntimeError("IUCN returned no usable display taxa from the selected spatial packages.")
+        raise RuntimeError(
+            "IUCN returned no usable display taxa from the selected spatial packages."
+        )
     self_rows = sum(1 for row in rows if row.get("spatial_lookup_source") == "self")
-    parent_geometry_rows = sum(1 for row in rows if row.get("spatial_lookup_source") == "parent_species")
+    parent_geometry_rows = sum(
+        1 for row in rows if row.get("spatial_lookup_source") == "parent_species"
+    )
     print("IUCN spatial-package fetch summary")
     print(f"- Spatial seed taxa fetched from API: {stats['spatial_seed_taxa']:,}")
-    print(f"- Display rows kept: {len(rows):,} ({self_rows:,} direct shapefile taxa + {parent_geometry_rows:,} children using parent geometry)")
-    print(f"- Missing-spatial child candidates tested from displayable parents: {stats['missing_spatial_child_candidates']:,}")
-    print(f"- Missing-spatial children added with parent geometry: {stats['display_children_using_parent_geometry']:,}")
-    print(f"- Parent rows not used for child discovery after API validation: {stats['parents_not_displayable_for_child_discovery']:,}")
-    print(f"- Self rows skipped by shapefile category prefilter: {stats['self_rows_prefiltered_by_spatial_category']:,}")
-    print(f"- Child/self rows skipped after API detail: {sum(skip_reasons.values()):,} ({format_counter(skip_reasons)})")
+    print(
+        f"- Display rows kept: {len(rows):,} ({self_rows:,} direct shapefile taxa + {parent_geometry_rows:,} children using parent geometry)"
+    )
+    print(
+        f"- Missing-spatial child candidates tested from displayable parents: {stats['missing_spatial_child_candidates']:,}"
+    )
+    print(
+        f"- Missing-spatial children added with parent geometry: {stats['display_children_using_parent_geometry']:,}"
+    )
+    print(
+        f"- Parent rows not used for child discovery after API validation: {stats['parents_not_displayable_for_child_discovery']:,}"
+    )
+    print(
+        f"- Self rows skipped by shapefile category prefilter: {stats['self_rows_prefiltered_by_spatial_category']:,}"
+    )
+    print(
+        f"- Child/self rows skipped after API detail: {sum(skip_reasons.values()):,} ({format_counter(skip_reasons)})"
+    )
     print(f"- Duplicate rows ignored: {stats['duplicates']:,}")
     return pd.DataFrame(rows)
 
@@ -778,8 +978,16 @@ def load_clean_spatial_file(path, allowed_taxon_ids=None):
     required_spatial_cols = {"taxonid", "geometry"}
     missing_spatial_cols = required_spatial_cols - set(gdf.columns)
     if missing_spatial_cols:
-        raise ValueError(f"Clean spatial file is missing columns: {sorted(missing_spatial_cols)}")
-    for metadata_col in ["source_path", "spatial_citation", "spatial_year", "spatial_presence", "spatial_seasonal"]:
+        raise ValueError(
+            f"Clean spatial file is missing columns: {sorted(missing_spatial_cols)}"
+        )
+    for metadata_col in [
+        "source_path",
+        "spatial_citation",
+        "spatial_year",
+        "spatial_presence",
+        "spatial_seasonal",
+    ]:
         if metadata_col not in gdf.columns:
             gdf[metadata_col] = None
 
@@ -868,7 +1076,9 @@ def best_presence_records(gdf):
     ranked = gdf.copy()
     ranked["_presence_priority"] = ranked["spatial_presence"].map(presence_priority)
     best = ranked.groupby("taxonid")["_presence_priority"].transform("min")
-    return ranked[ranked["_presence_priority"] == best].drop(columns="_presence_priority")
+    return ranked[ranked["_presence_priority"] == best].drop(
+        columns="_presence_priority"
+    )
 
 
 def best_seasonal_records(gdf):
@@ -878,7 +1088,9 @@ def best_seasonal_records(gdf):
     ranked = gdf.copy()
     ranked["_seasonal_priority"] = ranked["spatial_seasonal"].map(seasonal_priority)
     best = ranked.groupby("taxonid")["_seasonal_priority"].transform("min")
-    return ranked[ranked["_seasonal_priority"] == best].drop(columns="_seasonal_priority")
+    return ranked[ranked["_seasonal_priority"] == best].drop(
+        columns="_seasonal_priority"
+    )
 
 
 def first_non_empty(values):
@@ -917,7 +1129,9 @@ def build_spatial_credit(citation, year):
 
 def cluster_range_parts(parts, buffer_km):
     """Group nearby disjoint range components by intersecting metric buffers."""
-    part_gdf = gpd.GeoDataFrame({"geometry": parts}, geometry="geometry", crs="EPSG:4326")
+    part_gdf = gpd.GeoDataFrame(
+        {"geometry": parts}, geometry="geometry", crs="EPSG:4326"
+    )
     metric = part_gdf.to_crs(6933)
     metric["geometry"] = metric["geometry"].apply(make_valid)
     metric["part_index"] = range(len(metric))
@@ -947,13 +1161,17 @@ def cluster_range_parts(parts, buffer_km):
     for cluster_id, part_indexes in enumerate(clusters, start=1):
         cluster_metric = metric[metric["part_index"].isin(part_indexes)].copy()
         cluster_geometry_metric = unary_union(cluster_metric.geometry.tolist())
-        cluster_geometry = gpd.GeoSeries([cluster_geometry_metric], crs=6933).to_crs(4326).iloc[0]
-        rows.append({
-            "cluster_id": cluster_id,
-            "geometry": cluster_geometry,
-            "cluster_area_km2": float(cluster_metric["area_km2"].sum()),
-            "cluster_component_count": len(part_indexes),
-        })
+        cluster_geometry = (
+            gpd.GeoSeries([cluster_geometry_metric], crs=6933).to_crs(4326).iloc[0]
+        )
+        rows.append(
+            {
+                "cluster_id": cluster_id,
+                "geometry": cluster_geometry,
+                "cluster_area_km2": float(cluster_metric["area_km2"].sum()),
+                "cluster_component_count": len(part_indexes),
+            }
+        )
     return gpd.GeoDataFrame(rows, geometry="geometry", crs="EPSG:4326")
 
 
@@ -978,7 +1196,9 @@ SELECT ?iucn_id ?taxon ?article ?article_lang ?wiki_project ?article_title ?wiki
 
 def article_rank(article_lang):
     """Rank Wikipedia languages; any unlisted language remains usable after the preferred list."""
-    return WIKIPEDIA_LANGUAGE_RANK.get(str(article_lang), len(WIKIPEDIA_LANGUAGE_PRIORITY))
+    return WIKIPEDIA_LANGUAGE_RANK.get(
+        str(article_lang), len(WIKIPEDIA_LANGUAGE_PRIORITY)
+    )
 
 
 def query_wikidata_batch(iucn_ids, batch_size=500):
@@ -986,13 +1206,13 @@ def query_wikidata_batch(iucn_ids, batch_size=500):
     mapping = {}
     ids = list(map(str, iucn_ids))
     for i in tqdm(range(0, len(ids), batch_size), desc="Wikidata batches"):
-        batch = ids[i:i+batch_size]
+        batch = ids[i : i + batch_size]
         sparql = build_sparql_query(batch)
         r = requests.get(
             WIKIDATA_ENDPOINT,
             params={"query": sparql, "format": "json"},
             headers={"User-Agent": USER_AGENT},
-            timeout=60
+            timeout=60,
         )
         r.raise_for_status()
         for row in r.json()["results"]["bindings"]:
@@ -1003,9 +1223,28 @@ def query_wikidata_batch(iucn_ids, batch_size=500):
             project = row["wiki_project"]["value"]
             article_url = row["article"]["value"]
             rank = article_rank(lang)
-            entry = mapping.setdefault(iid, {"wikidata_url": wikidata_url, "wiki_title": title, "wiki_language": lang, "wiki_project": project, "wiki_url": article_url, "wiki_rank": rank, "wikidata_image_url": None})
+            entry = mapping.setdefault(
+                iid,
+                {
+                    "wikidata_url": wikidata_url,
+                    "wiki_title": title,
+                    "wiki_language": lang,
+                    "wiki_project": project,
+                    "wiki_url": article_url,
+                    "wiki_rank": rank,
+                    "wikidata_image_url": None,
+                },
+            )
             if rank < entry.get("wiki_rank", 999):
-                entry.update({"wiki_title": title, "wiki_language": lang, "wiki_project": project, "wiki_url": article_url, "wiki_rank": rank})
+                entry.update(
+                    {
+                        "wiki_title": title,
+                        "wiki_language": lang,
+                        "wiki_project": project,
+                        "wiki_url": article_url,
+                        "wiki_rank": rank,
+                    }
+                )
             image = row.get("wikidata_image_url", {}).get("value")
             if image and not entry["wikidata_image_url"]:
                 entry["wikidata_image_url"] = image.replace("http://", "https://", 1)
@@ -1022,8 +1261,8 @@ def scientific_name_variants(name):
     """
     variants = [name]
     if " ssp. " in name:
-        variants.append(name.replace(" ssp. ", " "))           # bare trinomial
-        variants.append(name.replace(" ssp. ", " subsp. "))    # formal subsp.
+        variants.append(name.replace(" ssp. ", " "))  # bare trinomial
+        variants.append(name.replace(" ssp. ", " subsp. "))  # formal subsp.
     return variants
 
 
@@ -1079,7 +1318,9 @@ def _wikidata_entry_from_sparql_row(row):
         "wiki_project": project,
         "wiki_url": article_url,
         "wiki_rank": article_rank(lang),
-        "wikidata_image_url": image.replace("http://", "https://", 1) if image else None,
+        "wikidata_image_url": (
+            image.replace("http://", "https://", 1) if image else None
+        ),
     }
 
 
@@ -1090,7 +1331,18 @@ def _merge_entry(mapping, iid, candidate):
         mapping[iid] = candidate
     else:
         if candidate["wiki_rank"] < existing["wiki_rank"]:
-            existing.update({k: candidate[k] for k in ("wiki_title", "wiki_language", "wiki_project", "wiki_url", "wiki_rank")})
+            existing.update(
+                {
+                    k: candidate[k]
+                    for k in (
+                        "wiki_title",
+                        "wiki_language",
+                        "wiki_project",
+                        "wiki_url",
+                        "wiki_rank",
+                    )
+                }
+            )
         if candidate["wikidata_image_url"] and not existing["wikidata_image_url"]:
             existing["wikidata_image_url"] = candidate["wikidata_image_url"]
 
@@ -1104,13 +1356,19 @@ def wikidata_entity_search(search_term, retries=3):
         try:
             r = requests.get(
                 "https://www.wikidata.org/w/api.php",
-                params={"action": "wbsearchentities", "search": search_term, "language": "en",
-                        "type": "item", "format": "json", "limit": 5},
+                params={
+                    "action": "wbsearchentities",
+                    "search": search_term,
+                    "language": "en",
+                    "type": "item",
+                    "format": "json",
+                    "limit": 5,
+                },
                 headers={"User-Agent": USER_AGENT},
                 timeout=15,
             )
             if r.status_code == 429:
-                wait = 2 ** attempt * 3
+                wait = 2**attempt * 3
                 time.sleep(wait)
                 continue
             r.raise_for_status()
@@ -1118,7 +1376,7 @@ def wikidata_entity_search(search_term, retries=3):
         except requests.exceptions.Timeout:
             if attempt == retries - 1:
                 raise
-            time.sleep(2 ** attempt * 2)
+            time.sleep(2**attempt * 2)
     else:
         return None
 
@@ -1128,10 +1386,14 @@ def wikidata_entity_search(search_term, retries=3):
 
     sparql = build_sparql_qid_query(qids)
     for attempt in range(retries):
-        r2 = requests.get(WIKIDATA_ENDPOINT, params={"query": sparql, "format": "json"},
-                          headers={"User-Agent": USER_AGENT}, timeout=30)
+        r2 = requests.get(
+            WIKIDATA_ENDPOINT,
+            params={"query": sparql, "format": "json"},
+            headers={"User-Agent": USER_AGENT},
+            timeout=30,
+        )
         if r2.status_code == 429:
-            wait = 2 ** attempt * 3
+            wait = 2**attempt * 3
             time.sleep(wait)
             continue
         r2.raise_for_status()
@@ -1157,7 +1419,9 @@ def query_wikidata_by_names(unresolved_taxonids, df):
         return {}
 
     unresolved_set = {str(t) for t in unresolved_taxonids}
-    unresolved_rows = df[df["taxonid"].astype(str).isin(unresolved_set)].drop_duplicates(subset="taxonid")
+    unresolved_rows = df[
+        df["taxonid"].astype(str).isin(unresolved_set)
+    ].drop_duplicates(subset="taxonid")
 
     # Build variant → taxonid mapping (one IUCN name can expand to 2–3 P225 candidates)
     variant_to_taxonids = {}
@@ -1175,17 +1439,23 @@ def query_wikidata_by_names(unresolved_taxonids, df):
         return {}
 
     all_variants = list(variant_to_taxonids.keys())
-    print(f"Wikidata name fallback: {len(unresolved_set)} unresolved taxa → {len(all_variants)} P225 candidates")
+    print(
+        f"Wikidata name fallback: {len(unresolved_set)} unresolved taxa → {len(all_variants)} P225 candidates"
+    )
 
     # ── Pass 1: P225 batch query ────────────────────────────────────────────────
     mapping = {}
     batch_size = 100
     for i in range(0, len(all_variants), batch_size):
-        batch = all_variants[i:i + batch_size]
+        batch = all_variants[i : i + batch_size]
         try:
             sparql = build_sparql_name_query(batch)
-            r = requests.get(WIKIDATA_ENDPOINT, params={"query": sparql, "format": "json"},
-                              headers={"User-Agent": USER_AGENT}, timeout=30)
+            r = requests.get(
+                WIKIDATA_ENDPOINT,
+                params={"query": sparql, "format": "json"},
+                headers={"User-Agent": USER_AGENT},
+                timeout=30,
+            )
             r.raise_for_status()
             for row in r.json()["results"]["bindings"]:
                 matched_variant = row["sci_name_match"]["value"]
@@ -1199,7 +1469,9 @@ def query_wikidata_by_names(unresolved_taxonids, df):
     # ── Pass 2: entity search for taxa still missing ────────────────────────────
     # Collect the original IUCN name for each still-unresolved taxonid
     resolved_iids = set(mapping.keys())
-    still_missing_rows = unresolved_rows[~unresolved_rows["taxonid"].astype(str).isin(resolved_iids)]
+    still_missing_rows = unresolved_rows[
+        ~unresolved_rows["taxonid"].astype(str).isin(resolved_iids)
+    ]
     for i, (_, row) in enumerate(still_missing_rows.iterrows(), 1):
         sci_name = str(row.get("scientific_name", "")).strip()
         common_name = str(row.get("main_common_name", "")).strip()
@@ -1233,11 +1505,13 @@ def query_wikidata_by_names(unresolved_taxonids, df):
             wiki_url = entry.get("wiki_url", "—")
             print(f"    {sci}  →  {wiki_title}  |  {wikidata_url}  |  {wiki_url}")
 
-    still_missing_names = sorted({
-        str(row.get("scientific_name", ""))
-        for _, row in unresolved_rows.iterrows()
-        if str(row["taxonid"]) not in mapping
-    })
+    still_missing_names = sorted(
+        {
+            str(row.get("scientific_name", ""))
+            for _, row in unresolved_rows.iterrows()
+            if str(row["taxonid"]) not in mapping
+        }
+    )
     if still_missing_names:
         print(f"  Still missing after name fallback: {still_missing_names}")
     return mapping
@@ -1254,8 +1528,10 @@ def get_pageviews(project, title, retries=3):
             if r.status_code == 404:
                 return 0
             if r.status_code == 429:
-                wait = 2 ** attempt * 5
-                tqdm.write(f"  [pageviews] 429 rate limit — waiting {wait}s before retry")
+                wait = 2**attempt * 5
+                tqdm.write(
+                    f"  [pageviews] 429 rate limit — waiting {wait}s before retry"
+                )
                 time.sleep(wait)
                 continue
             if not r.ok:
@@ -1299,7 +1575,11 @@ def clean_commons_metadata(value):
 
 def commons_metadata_value(extmetadata, key):
     """Read one Wikimedia Commons extmetadata value by key."""
-    value = (extmetadata.get(key) or {}).get("value") if isinstance(extmetadata, dict) else None
+    value = (
+        (extmetadata.get(key) or {}).get("value")
+        if isinstance(extmetadata, dict)
+        else None
+    )
     return clean_commons_metadata(value)
 
 
@@ -1316,12 +1596,17 @@ def commons_search_terms(scientific_name, common_name):
 def is_probable_range_map_title(value):
     """Reject image titles or URLs that likely describe a range/distribution map, not the animal."""
     normalized = urllib.parse.unquote(str(value or "")).lower().replace("_", " ")
-    return any(token in normalized for token in ["distrib", "range", "extent", "area", "zon", "map"])
+    return any(
+        token in normalized
+        for token in ["distrib", "range", "extent", "area", "zon", "map"]
+    )
 
 
 def search_commons_image(scientific_name, common_name):
     """Find the first usable Wikimedia Commons bitmap image, with attribution metadata when available."""
-    for search_source, search_term in commons_search_terms(scientific_name, common_name):
+    for search_source, search_term in commons_search_terms(
+        scientific_name, common_name
+    ):
         params = {
             "action": "query",
             "generator": "search",
@@ -1335,7 +1620,12 @@ def search_commons_image(scientific_name, common_name):
             "formatversion": 2,
         }
         try:
-            r = requests.get(COMMONS_API_URL, params=params, headers={"User-Agent": USER_AGENT}, timeout=20)
+            r = requests.get(
+                COMMONS_API_URL,
+                params=params,
+                headers={"User-Agent": USER_AGENT},
+                timeout=20,
+            )
             r.raise_for_status()
             pages = r.json().get("query", {}).get("pages", [])
         except Exception:
@@ -1356,8 +1646,13 @@ def search_commons_image(scientific_name, common_name):
                 "commons_image_page_url": imageinfo.get("descriptionurl"),
                 "commons_image_title": page.get("title"),
                 "commons_image_author": commons_metadata_value(extmetadata, "Artist"),
-                "commons_image_license": commons_metadata_value(extmetadata, "LicenseShortName") or commons_metadata_value(extmetadata, "UsageTerms"),
-                "commons_image_license_url": commons_metadata_value(extmetadata, "LicenseUrl"),
+                "commons_image_license": commons_metadata_value(
+                    extmetadata, "LicenseShortName"
+                )
+                or commons_metadata_value(extmetadata, "UsageTerms"),
+                "commons_image_license_url": commons_metadata_value(
+                    extmetadata, "LicenseUrl"
+                ),
                 "commons_image_credit": commons_metadata_value(extmetadata, "Credit"),
                 "commons_image_search_source": search_source,
                 "commons_image_search_term": search_term,
@@ -1383,7 +1678,9 @@ def wikidata_entry_for_id(taxonid):
 def apply_wikidata_entry_to_mask(frame, mask, taxonid_series, source_label):
     """Replace article/image lookup fields for rows selected by mask using a taxonid series."""
     for field in WIKIDATA_FIELDS:
-        frame.loc[mask, field] = taxonid_series[mask].map(lambda taxonid: wikidata_entry_for_id(taxonid).get(field))
+        frame.loc[mask, field] = taxonid_series[mask].map(
+            lambda taxonid: wikidata_entry_for_id(taxonid).get(field)
+        )
     frame.loc[mask, "wiki_lookup_taxonid"] = taxonid_series[mask].astype(int)
     frame.loc[mask, "wiki_lookup_source"] = source_label
 
@@ -1420,8 +1717,12 @@ def feature_properties(row):
         "wiki_url": clean_json_value(row.wiki_url),
         "wikidata_url": clean_json_value(row.wikidata_url),
         "wikidata_image_url": clean_json_value(row.wikidata_image_url),
-        "wiki_lookup_taxonid": clean_json_value(getattr(row, "wiki_lookup_taxonid", None)),
-        "wiki_lookup_source": clean_json_value(getattr(row, "wiki_lookup_source", None)),
+        "wiki_lookup_taxonid": clean_json_value(
+            getattr(row, "wiki_lookup_taxonid", None)
+        ),
+        "wiki_lookup_source": clean_json_value(
+            getattr(row, "wiki_lookup_source", None)
+        ),
         "wikipedia_thumbnail_url": clean_json_value(row.wikipedia_thumbnail_url),
         "commons_image_url": clean_json_value(row.commons_image_url),
         "commons_image_page_url": clean_json_value(row.commons_image_page_url),
@@ -1430,18 +1731,30 @@ def feature_properties(row):
         "commons_image_license": clean_json_value(row.commons_image_license),
         "commons_image_license_url": clean_json_value(row.commons_image_license_url),
         "commons_image_credit": clean_json_value(row.commons_image_credit),
-        "commons_image_search_source": clean_json_value(row.commons_image_search_source),
+        "commons_image_search_source": clean_json_value(
+            row.commons_image_search_source
+        ),
         "commons_image_search_term": clean_json_value(row.commons_image_search_term),
         "image_url": clean_json_value(row.image_url),
         "image_source": clean_json_value(row.image_source),
-        "image_lookup_taxonid": clean_json_value(getattr(row, "image_lookup_taxonid", None)),
-        "image_lookup_source": clean_json_value(getattr(row, "image_lookup_source", None)),
+        "image_lookup_taxonid": clean_json_value(
+            getattr(row, "image_lookup_taxonid", None)
+        ),
+        "image_lookup_source": clean_json_value(
+            getattr(row, "image_lookup_source", None)
+        ),
         "label": row.label,
         "category_iucn": row.category_iucn,
         "population_trend": clean_json_value(row.population_trend),
-        "number_of_mature_individuals": clean_json_value(row.number_of_mature_individuals),
-        "estimated_area_of_occupancy": clean_json_value(row.estimated_area_of_occupancy),
-        "estimated_extent_of_occurrence": clean_json_value(row.estimated_extent_of_occurrence),
+        "number_of_mature_individuals": clean_json_value(
+            row.number_of_mature_individuals
+        ),
+        "estimated_area_of_occupancy": clean_json_value(
+            row.estimated_area_of_occupancy
+        ),
+        "estimated_extent_of_occurrence": clean_json_value(
+            row.estimated_extent_of_occurrence
+        ),
         "taxon_class": row.taxon_class,
         "taxon_group": row.taxon_group,
         "taxon_rank": clean_json_value(row.taxon_rank),
@@ -1454,17 +1767,25 @@ def feature_properties(row):
         "centroid_count": clean_json_value(row.centroid_count),
         "range_component_count": clean_json_value(row.range_component_count),
         "range_cluster_count": clean_json_value(row.range_cluster_count),
-        "range_cluster_component_count": clean_json_value(row.range_cluster_component_count),
+        "range_cluster_component_count": clean_json_value(
+            row.range_cluster_component_count
+        ),
         "range_cluster_buffer_km": clean_json_value(row.range_cluster_buffer_km),
         "range_cluster_area_share": clean_json_value(row.range_cluster_area_share),
         "spatial_presence": clean_json_value(row.spatial_presence),
         "spatial_presence_label": clean_json_value(row.spatial_presence_label),
         "spatial_seasonal": clean_json_value(row.spatial_seasonal),
         "spatial_seasonal_label": clean_json_value(row.spatial_seasonal_label),
-        "spatial_lookup_taxonid": clean_json_value(getattr(row, "spatial_lookup_taxonid", None)),
-        "spatial_lookup_source": clean_json_value(getattr(row, "spatial_lookup_source", None)),
+        "spatial_lookup_taxonid": clean_json_value(
+            getattr(row, "spatial_lookup_taxonid", None)
+        ),
+        "spatial_lookup_source": clean_json_value(
+            getattr(row, "spatial_lookup_source", None)
+        ),
         "computed_range_area_km2": clean_json_value(row.computed_range_area_km2),
-        "computed_range_component_area_km2": clean_json_value(row.computed_range_component_area_km2),
+        "computed_range_component_area_km2": clean_json_value(
+            row.computed_range_component_area_km2
+        ),
         "range_component_area_km2": clean_json_value(row.range_component_area_km2),
         "observation_point_count": clean_json_value(row.observation_point_count),
         "source_paths": clean_json_value(row.source_paths),
@@ -1482,18 +1803,25 @@ def run_spatial_cleaning(targets_path, output_path, input_dir=None):
     cmd = [
         sys.executable,
         "scripts/clean_spatial_data.py",
-        "--targets", str(targets_path),
-        "--input-dir", str(input_dir or SPATIAL_DATA_DIR),
-        "--output", str(output_path),
+        "--targets",
+        str(targets_path),
+        "--input-dir",
+        str(input_dir or SPATIAL_DATA_DIR),
+        "--output",
+        str(output_path),
     ]
     subprocess.run(cmd, check=True)
 
 
 def attach_wikidata_fields(frame, mapping):
     """Attach Wikidata/Wikipedia fields using the row-level wiki_lookup_taxonid."""
-    lookup_ids = frame["wiki_lookup_taxonid"].map(lambda value: str(int(value)) if pd.notna(value) else None)
+    lookup_ids = frame["wiki_lookup_taxonid"].map(
+        lambda value: str(int(value)) if pd.notna(value) else None
+    )
     for field in WIKIDATA_FIELDS:
-        frame[field] = lookup_ids.map(lambda taxonid: (mapping.get(taxonid) or {}).get(field) if taxonid else None)
+        frame[field] = lookup_ids.map(
+            lambda taxonid: (mapping.get(taxonid) or {}).get(field) if taxonid else None
+        )
 
 
 def geojson_text_col(frame, col):

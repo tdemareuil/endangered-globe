@@ -223,6 +223,25 @@
             text-decoration-color: rgba(255, 255, 255, 0.25);
         }
 
+        .coverage-figure {
+            margin: 16px 0 12px;
+            padding: 0;
+        }
+        .coverage-figure img {
+            display: block;
+            width: 100%;
+            border-radius: 7px;
+            background: #ffffff;
+            padding: 6px;
+            box-sizing: border-box;
+        }
+        .coverage-figure figcaption {
+            margin-top: 8px;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.46);
+            line-height: 1.5;
+        }
+
         @media (max-width: 700px) {
             #menu {
                 top: 10px; left: 10px; right: 10px;
@@ -320,11 +339,13 @@
                             <div class="details-title">Method</div>
                         </div>
                         <div class="details-copy">
-                            <p>The dataset starts from the latest global IUCN Red List assessments for the animal groups currently covered by the project. Threat categories and taxonomic groups are kept from the assessment data, with a simplified display group added for the browser.</p>
-                            <p>Spatial placement uses IUCN and BirdLife range data matched by taxon ID. For each taxon, usable range records are selected by presence status, nearby fragments are clustered, and representative label points are computed from the selected geometry.</p>
-                            <p>Species with large disconnected ranges can receive several label points, but secondary clusters are kept only when they represent enough of the total mapped range.</p>
-                            <p>Name size and weight come from Wikipedia pageviews over the last completed year. More-viewed animals appear earlier; zooming in reveals less-viewed species.</p>
-                            <p>Photos and article links come from Wikidata first, then Wikipedia and Wikimedia Commons fallbacks when available.</p>
+                            <p>The dataset starts from the latest global IUCN Red List assessments. We keep the most granular endangered taxonomy level available (species or subspecies).</p>
+                            <p>Spatial placement uses IUCN and BirdLife range data. The representative geometry is chosen from a prioritized combination of presence (Extant, Probably Extant, Possibly Extant) and seasonality (Resident, Breeding, Non-breeding, Passage). Centroids are then computed to get one point per species. Species with large disconnected ranges can receive several label points (max 2), but secondary clusters are kept only when they represent enough of the total mapped range (min 10%).</p>
+                            <p>Name size and weight come from Wikipedia pageviews over the last completed year (Jun&nbsp;25 – May&nbsp;26). More-viewed animals appear earlier; zooming in reveals less-viewed species. Photos come from Wikidata first, then Wikipedia and Wikimedia Commons fallbacks when available.</p>
+                            <figure class="coverage-figure">
+                                <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Red_List_by_group_260327.png" alt="IUCN Red List species count by group and category" />
+                                <figcaption>This project currently covers the 5 first groups (excl. some marine fishes). Total species or sub-species displayed: <span id="species-count">—</span>.</figcaption>
+                            </figure>
                             <span class="data-credit">
                                 Spatial data: IUCN 2025. The IUCN Red List of Threatened Species. Version 2025-2.
                                 <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer">https://www.iucnredlist.org</a>.
@@ -864,6 +885,9 @@
 
         map.on('load', async () => {
             animals = normalizeAnimalGroups(await loadAnimals());
+            const speciesCount = new Set(animals.features.map(f => f.properties.taxonid)).size;
+            const speciesCountEl = document.getElementById('species-count');
+            if (speciesCountEl) speciesCountEl.textContent = speciesCount.toLocaleString();
             const popularityQuartiles = getPopularityQuartiles(animals);
             map.addSource('animals', { type: 'geojson', data: animals });
 
