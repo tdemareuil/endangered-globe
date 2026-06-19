@@ -36,6 +36,8 @@ TARGET_CATEGORIES = ["EW", "CR", "EN", "VU", "NT", "CD"]
 SLEEP_WIKI = 0.15
 SLEEP_IUCN = 0.5
 SPATIAL_DATA_DIR = "data/shapefiles"
+PREFILTERED_SPATIAL_DIR = "data/processed/spatial_prefiltered"
+BIRDS_FILTER_CSV = ""
 SAMPLE_LIMIT = 200
 USE_IUCN_CACHE = True
 USE_PARENT_SPATIAL_FALLBACK = False
@@ -375,6 +377,49 @@ def read_shapefile_attributes(path):
         return gpd.read_file(path).drop(columns="geometry", errors="ignore")
 
 
+def spatial_manifest_from_clean_file(clean_path, run_mode):
+    """Build the API seed manifest from an already-cleaned spatial GeoJSON.
+
+    Reads spatial_package and spatial_category columns written by clean_spatial_data.py
+    pre-filter mode, applies the sample limit for sample run modes, and returns a
+    manifest DataFrame in the same format as selected_spatial_manifest_for_run_mode.
+    """
+    if not os.path.exists(clean_path):
+        raise FileNotFoundError(f"Clean spatial file not found: {clean_path}. Run the spatial cleaning cell first.")
+
+    gdf = gpd.read_file(clean_path)
+    required = {"taxonid", "spatial_package"}
+    missing = required - set(gdf.columns)
+    if missing:
+        raise ValueError(f"Clean spatial file is missing columns: {missing}. Re-run spatial cleaning in pre-filter mode.")
+
+    gdf["taxonid"] = gdf["taxonid"].astype(int)
+    all_spatial_taxonids = set(gdf["taxonid"].unique())
+
+    manifest = (
+        gdf[["taxonid", "spatial_package", "spatial_category"]]
+        .drop_duplicates()
+        .groupby("taxonid", as_index=False)
+        .agg(
+            spatial_package=("spatial_package", lambda s: "; ".join(sorted(set(s.dropna().astype(str))))),
+            spatial_category=("spatial_category", lambda s: next((v for v in s if pd.notna(v)), None)),
+        )
+        .sort_values("taxonid")
+        .reset_index(drop=True)
+    )
+
+    displayable_mask = manifest["spatial_category"].map(spatial_category_is_displayable)
+    missing_category = manifest["spatial_category"].fillna("").astype(str).str.strip().eq("")
+    manifest = manifest[displayable_mask | missing_category].copy()
+
+    if run_mode in ("sample", "sample_birds"):
+        manifest = manifest.head(SAMPLE_LIMIT).copy()
+
+    manifest.attrs["all_spatial_taxonids"] = all_spatial_taxonids
+    print(f"Spatial manifest from clean file: {len(manifest):,} taxa ({run_mode})")
+    return manifest
+
+
 def build_spatial_taxon_manifest(packages):
     """Build the API seed list from taxon IDs present in the selected spatial packages."""
     records = []
@@ -501,11 +546,14 @@ def extract_population_trend(detail):
 
 def extract_number_of_mature_individuals(detail):
     """Return IUCN's raw Number of mature individuals value from supplementary info."""
-    return pick_path(
+    value = pick_path(
         detail,
         ("supplementary_info", "population_size"),
         ("population_size",),
     )
+    if isinstance(value, str) and value.strip().lower() in {"u", "unknown"}:
+        return None
+    return value
 
 
 def extract_estimated_area_of_occupancy(detail):
@@ -1798,17 +1846,26 @@ def feature_properties(row):
     }
 
 
-def run_spatial_cleaning(targets_path, output_path, input_dir=None):
-    """Run the spatial pre-cleaning script for one target table."""
+def run_spatial_prefilter(packages, output_path, birds_filter_csv=None, input_dir=None):
+    """Run clean_spatial_data.py in pre-filter mode (no API targets, category-based filter)."""
     cmd = [
-        sys.executable,
-        "scripts/clean_spatial_data.py",
-        "--targets",
-        str(targets_path),
-        "--input-dir",
-        str(input_dir or SPATIAL_DATA_DIR),
-        "--output",
-        str(output_path),
+        sys.executable, "scripts/clean_spatial_data.py",
+        "--packages", ",".join(packages),
+        "--input-dir", str(input_dir or SPATIAL_DATA_DIR),
+        "--output", str(output_path),
+    ]
+    if birds_filter_csv:
+        cmd += ["--birds-filter-csv", str(birds_filter_csv)]
+    subprocess.run(cmd, check=True)
+
+
+def run_spatial_cleaning(targets_path, output_path, input_dir=None):
+    """Run clean_spatial_data.py in post-API mode (filter by taxon IDs from targets CSV)."""
+    cmd = [
+        sys.executable, "scripts/clean_spatial_data.py",
+        "--targets", str(targets_path),
+        "--input-dir", str(input_dir or SPATIAL_DATA_DIR),
+        "--output", str(output_path),
     ]
     subprocess.run(cmd, check=True)
 

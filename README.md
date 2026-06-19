@@ -1,6 +1,24 @@
 # An Endangered Globe
 
-An interactive 3D globe in dark mode mapping animal species threatened with extinction. Inspired by [Topi Tjukanov's Notable People](https://tjukanovt.github.io/notable-people), the map displays no city names or political borders — the world's geography is redrawn entirely by the names of animals.
+Today, more than 48,600 species are threatened with extinction. That's 28% of the 172,600 species assessed by the IUCN in 2025. This interactive 3D globe maps some of these threatened species, primarily vertebrates (Animalia). Inspired by [Topi Tjukanov's Notable People](https://tjukanovt.github.io/notable-people), the map displays no city names — the world's geography is redrawn entirely through the names of threatened animals.
+
+## Table of Contents
+
+- [Concept](#concept)
+- [IUCN Categories Included](#iucn-categories-included)
+- [Data Architecture](#data-architecture)
+  - [Channel 1 — IUCN Red List API](#channel-1--iucn-red-list-api)
+  - [Channel 2 — IUCN Spatial Data](#channel-2--iucn-spatial-data)
+  - [Channel 3 — Wikidata (SPARQL API)](#channel-3--wikidata-sparql-api)
+  - [Channel 4 — Wikipedia Pageviews (public REST API)](#channel-4--wikipedia-pageviews-public-rest-api)
+- [Python Pipeline](#python-pipeline)
+  - [Step 1 — IUCN filtering & label-point computation](#step-1--iucn-filtering--label-point-computation)
+  - [Step 2 — Popularity harvesting](#step-2--popularity-harvesting)
+  - [Step 3 — Clean GeoJSON export](#step-3--clean-geojson-export)
+- [Web Interface](#web-interface)
+- [Reference](#reference)
+
+---
 
 ## Concept
 
@@ -108,16 +126,16 @@ Spatial download coverage log for IUCN spatial-download categories. Keep this le
 | Birds / `BIRDS` | Covered | `Aves` | Birds | `sample_birds`, `full_birds` | BirdLife BOTW GPKG format; taxon ID column is `sisid`. |
 | Amphibians / `AMPHIBIANS` | Covered | `Amphibia` | Other (Reptiles, Amphib., Crust.) | `full_other` | Grouped with reptiles and selected crustaceans in the UI. |
 | Reptiles / `REPTILES` | Covered | `Reptilia` | Other (Reptiles, Amphib., Crust.) | `full_other` | Grouped with amphibians and selected crustaceans in the UI. |
-| Freshwater crabs / `FW_CRABS` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean package. |
-| Freshwater crayfish / `FW_CRAYFISH` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean package. |
-| Freshwater shrimps / `FW_SHRIMPS` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean package. |
-| Lobsters / `LOBSTERS` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean package. |
-| Freshwater fishes / `FW_FISH` | Covered | `Actinopterygii`, `Chondrichthyes`, `Myxini`, `Petromyzonti`, `Sarcopterygii` when present in this package | Fish (sharks, freshwater) | `full_fish` | Freshwater fish package; split files such as `FW_FISH_PART*.shp` are concatenated by the cleaning script. Marine fish outside this package are not queried. |
-| Sharks, rays, and chimaeras / `SHARKS_RAYS_CHIMAERAS` | Covered | `Chondrichthyes` | Fish (sharks, freshwater) | `full_fish` | Cartilaginous fish package. |
-| Other fish spatial packages not listed above | Not covered | TBD | TBD | none | Kept out until the relevant folder is downloaded and mapped explicitly; this includes marine fish packages outside the current freshwater fish and sharks/rays/chimaeras sources. |
+| Freshwater crabs / `FW_CRABS` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean spatial files. |
+| Freshwater crayfish / `FW_CRAYFISH` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean spatial files. |
+| Freshwater shrimps / `FW_SHRIMPS` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean spatial files. |
+| Lobsters / `LOBSTERS` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean spatial files. |
+| Freshwater fishes / `FW_FISH` | Covered | `Actinopterygii`, `Chondrichthyes`, `Myxini`, `Petromyzonti`, `Sarcopterygii` when present in these spatial files | Fish (sharks, freshwater) | `full_fish` | Freshwater fish spatial files; split files such as `FW_FISH_PART*.shp` are concatenated by the cleaning script. Marine fish outside these spatial files are not queried. |
+| Sharks, rays, and chimaeras / `SHARKS_RAYS_CHIMAERAS` | Covered | `Chondrichthyes` | Fish (sharks, freshwater) | `full_fish` | Cartilaginous fish spatial files. |
+| Other fishes not listed above | Not covered | TBD | TBD | none | Kept out until the relevant folder is downloaded and mapped explicitly; this includes marine fish packages outside the current freshwater fish and sharks/rays/chimaeras sources. |
 | Corals | Not covered | TBD | none | none | Outside the current animal-label scope. |
-| Molluscs, including cone snails or freshwater mollusc packages | Not covered | TBD | none | none | Outside the current animal-label scope. |
-| Insects and other terrestrial/freshwater arthropods not listed above | Not covered | TBD | none | none | Excluded by default because broad insect coverage would create many low-signal API calls. Add only explicit packages if needed later. |
+| Molluscs, including cone snails and freshwater molluscs | Not covered | TBD | none | none | Outside the current animal-label scope. |
+| Insects and other terrestrial/freshwater arthropods | Not covered | TBD | none | none | Excluded by default because broad insect coverage would create many low-signal API calls. Add only explicit packages if needed later. |
 | Plants, including conifers, cycads, mangroves, and seagrasses | Not covered | TBD | none | none | Outside the current animal-label scope. |
 | Any other IUCN downloadable spatial category | Not covered until mapped | TBD | TBD | none | Add the folder pattern to `SPATIAL_PACKAGE_CONFIG`, include it in a `RUN_MODE_SPATIAL_PACKAGES` entry, choose a UI group/run mode, then document it here. |
 
@@ -262,7 +280,7 @@ Expected output depends on `RUN_MODE`: sample runs stay small, while broad spati
 
 ## Web Interface
 
-### Stack (100% free, open-source, no recurring subscriptions)
+### Stack (100% free, open-source)
 
 | Role | Tool |
 |---|---|
@@ -277,7 +295,7 @@ Expected output depends on `RUN_MODE`: sample runs stay small, while broad spati
 
 **Styled globe.** CartoDB Dark Matter provides the label-free vector geometry, while the prototype overrides land, water, and boundary colors to create a saturated violet-blue globe inspired by Notable People.
 
-**Thin label halos.** Species labels use a very light text halo so names stay legible without the heavy outlined look of the first prototype.
+**Thin label halos.** Species labels use a very light text halo so names stay legible without a heavy outline.
 
 ### Rendering mechanics
 
@@ -301,30 +319,6 @@ background: rgba(10, 10, 15, 0.6);
 backdrop-filter: blur(12px);
 border: 1px solid rgba(255, 255, 255, 0.08);
 ```
-
----
-
-## Known Challenges
-
-**IUCN account creation.** This is the only mandatory account to create. The validation takes 24–48 hours — do it first. You need their API token for automated assessment queries and shapefile downloads.
-
-**IUCN API rate limits.** The notebook uses a local cache and a 0.5s delay between IUCN API calls. Keep both enabled while iterating, especially in sample mode.
-
-**Wikipedia API rate limits.** Wikimedia blocks scripts that query too fast without identifying themselves. Always set a proper `User-Agent` string (include your email address) and add a small delay between requests.
-
-**Ocean emptiness.** Terrestrial species will cluster beautifully on biodiversity hotspots (Madagascar, Indonesia, Amazonia) while marine species (whales, sharks) may appear as isolated dots in the middle of oceans. The neon dot layer helps fill these vast blue spaces visually.
-
-**NT scale.** Near Threatened adds a significantly larger population of species than CR/EN/VU. The "popcorn" de-overlap effect will be more aggressive at low zoom — this is intended behavior.
-
----
-
-## Immediate Action Plan
-
-1. **Create your IUCN account** at [iucnredlist.org](https://www.iucnredlist.org/) to get access to species geographic data (allow 24–48h for validation).
-2. **Bootstrap the Python pipeline** locally in sample mode: query the IUCN API for a small mammal set using the same downstream steps as the larger runs.
-3. **Wire up the Wikidata → Pageviews bridge** in Python to confirm you can generate a popularity score for those animals.
-4. **Use the generated browser dataset**: `index.html` now loads `animals.geojson`, with inline sample data kept only as a fallback.
-5. **Scale the pipeline by spatial package**: run `full_mammals`, `full_other`, `full_fish`, and `full_birds`, export `animals.geojson`, and deploy to GitHub Pages.
 
 ---
 

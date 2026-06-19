@@ -17,18 +17,22 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+from shapely.validation import make_valid
+
+
+DISPLAYABLE_CATEGORIES = {"EW", "CR", "EN", "VU", "NT", "CD"}
 
 
 PACKAGE_PATTERNS = {
-    "MAMMALS": ["MAMMALS/*.shp"],
-    "REPTILES": ["REPTILES/*.shp"],
-    "AMPHIBIANS": ["AMPHIBIANS/*.shp"],
-    "FW_CRABS": ["FW_CRABS/*.shp"],
-    "FW_CRAYFISH": ["FW_CRAYFISH/*.shp"],
-    "FW_SHRIMPS": ["FW_SHRIMPS/*.shp"],
-    "LOBSTERS": ["LOBSTERS/*.shp"],
-    "FW_FISH": ["FW_FISH/*.shp"],
-    "SHARKS_RAYS_CHIMAERAS": ["SHARKS_RAYS_CHIMAERAS/*.shp"],
+    "MAMMALS": ["MAMMALS/*.shp", "MAMMALS/*.gpkg"],
+    "REPTILES": ["REPTILES/*.shp", "REPTILES/*.gpkg"],
+    "AMPHIBIANS": ["AMPHIBIANS/*.shp", "AMPHIBIANS/*.gpkg"],
+    "FW_CRABS": ["FW_CRABS/*.shp", "FW_CRABS/*.gpkg"],
+    "FW_CRAYFISH": ["FW_CRAYFISH/*.shp", "FW_CRAYFISH/*.gpkg"],
+    "FW_SHRIMPS": ["FW_SHRIMPS/*.shp", "FW_SHRIMPS/*.gpkg"],
+    "LOBSTERS": ["LOBSTERS/*.shp", "LOBSTERS/*.gpkg"],
+    "FW_FISH": ["FW_FISH/*.shp", "FW_FISH/*.gpkg"],
+    "SHARKS_RAYS_CHIMAERAS": ["SHARKS_RAYS_CHIMAERAS/*.shp", "SHARKS_RAYS_CHIMAERAS/*.gpkg"],
     "BIRDS": ["BIRDS/*.gpkg"],
 }
 
@@ -53,7 +57,9 @@ SEASONAL_LABELS = {
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--targets", required=True, help="CSV written by the notebook with at least taxonid.")
+    parser.add_argument("--targets", default=None, help="CSV with at least taxonid + spatial_package. When omitted, filters by displayable IUCN category instead.")
+    parser.add_argument("--packages", default=None, help="Comma-separated package list (e.g. MAMMALS,BIRDS). Used when --targets is absent.")
+    parser.add_argument("--birds-filter-csv", default=None, help="CSV with a 'SIS ID' column; used to filter the BIRDS package when --targets is absent.")
     parser.add_argument("--input-dir", default="data/shapefiles", help="Directory containing extracted IUCN spatial files.")
     parser.add_argument("--output", default="data/processed/iucn_spatial_clean.geojson", help="Clean spatial output path.")
     parser.add_argument("--all-shapefiles", action="store_true", help="Read every .shp under input-dir instead of package-specific folders.")
@@ -222,29 +228,67 @@ def print_scientific_name_check(gdf, targets, path):
         print(f"  taxonid/name check: {checked:,}/{checked:,} spatial rows match API scientific_name")
 
 
-def clean_spatial_data(targets_path, input_dir, output_path, all_shapefiles=False):
-    """Build a small spatial file matching the notebook's target taxon IDs."""
-    targets = pd.read_csv(targets_path)
-    if "taxonid" not in targets.columns:
-        raise ValueError(f"{targets_path} must contain a taxonid column")
+def clean_spatial_data(
+    input_dir,
+    output_path,
+    targets_path=None,
+    packages=None,
+    birds_filter_csv=None,
+    all_shapefiles=False,
+):
+    """Build a clean spatial file.
 
-    target_ids = set(pd.to_numeric(targets["taxonid"], errors="coerce").dropna().astype(int))
-    if not target_ids:
-        raise ValueError(f"{targets_path} contains no usable taxonid values")
+    Two modes:
+    - Pre-filter mode (targets_path=None): filter by displayable IUCN category +
+      optional birds CSV. Run before the IUCN API fetch.
+    - Post-API mode (targets_path provided): filter by taxon IDs from the API output.
+      Kept for compatibility; rarely needed now that pre-filter mode covers the same set.
+    """
+    # ── Resolve target IDs and packages ──────────────────────────────────────
+    target_ids = None
+    targets = None
 
-    packages = target_packages(targets)
+    if targets_path is not None:
+        targets = pd.read_csv(targets_path)
+        if "taxonid" not in targets.columns:
+            raise ValueError(f"{targets_path} must contain a taxonid column")
+        target_ids = set(pd.to_numeric(targets["taxonid"], errors="coerce").dropna().astype(int))
+        if not target_ids:
+            raise ValueError(f"{targets_path} contains no usable taxonid values")
+        packages = target_packages(targets)
+    elif packages is None:
+        raise ValueError("Provide either --targets or --packages")
+
+    # ── Birds filter CSV ──────────────────────────────────────────────────────
+    birds_allowed_ids = None
+    if birds_filter_csv and os.path.exists(birds_filter_csv):
+        bdf = pd.read_csv(birds_filter_csv)
+        birds_allowed_ids = set(pd.to_numeric(bdf["SIS ID"], errors="coerce").dropna().astype(int))
+        print(f"Birds filter CSV: {len(birds_allowed_ids):,} target taxa")
+
     paths = shapefile_paths(input_dir, packages, all_shapefiles=all_shapefiles)
     if not paths:
         source_text = ", ".join(packages) if packages else "all packages"
         raise FileNotFoundError(f"No shapefiles found in {input_dir} for {source_text}")
 
-    print(f"Target taxa: {len(target_ids):,}")
-    if packages:
-        print(f"Spatial packages: {', '.join(packages)}")
+    mode = "post-API taxon ID filter" if target_ids is not None else "pre-filter (category-based)"
+    print(f"Mode: {mode}")
+    if target_ids is not None:
+        print(f"Target taxa: {len(target_ids):,}")
+    print(f"Spatial packages: {', '.join(packages)}")
     print(f"Spatial files: {len(paths):,}")
 
+    # ── Resolve package for each path ─────────────────────────────────────────
+    path_to_package = {}
+    for pkg in packages:
+        for pattern in PACKAGE_PATTERNS.get(pkg, []):
+            for p in glob.glob(os.path.join(input_dir, pattern)):
+                path_to_package[os.path.abspath(p)] = pkg
+
     frames = []
+    total_raw = 0
     for path in paths:
+        package = path_to_package.get(os.path.abspath(path), "UNKNOWN")
         print(f"Loading {path}...")
         gdf = gpd.read_file(path)
         if gdf.crs and gdf.crs.to_epsg() != 4326:
@@ -258,24 +302,45 @@ def clean_spatial_data(targets_path, input_dir, output_path, all_shapefiles=Fals
         ids = pd.to_numeric(gdf[id_col], errors="coerce")
         gdf = gdf[ids.notna()].copy()
         gdf["taxonid"] = ids[ids.notna()].astype(int)
-        gdf = gdf[gdf["taxonid"].isin(target_ids)]
-        if gdf.empty:
-            print("  no target taxa")
-            continue
-        print_scientific_name_check(gdf, targets, path)
+        file_raw = len(gdf)
+        file_raw_taxa = gdf["taxonid"].nunique()
+        total_raw += file_raw
 
-        before = len(gdf)
+        # ── Apply taxon ID or category filter ────────────────────────────────
+        if target_ids is not None:
+            gdf = gdf[gdf["taxonid"].isin(target_ids)]
+        else:
+            if package == "BIRDS" and birds_allowed_ids is not None:
+                gdf = gdf[gdf["taxonid"].isin(birds_allowed_ids)].copy()
+            else:
+                cat_col = first_existing_column(
+                    gdf.columns, ["category", "red_list_category", "rl_category", "rlcat", "status"]
+                )
+                if cat_col:
+                    norm_cat = gdf[cat_col].str.strip().str.upper()
+                    gdf = gdf[norm_cat.isin(DISPLAYABLE_CATEGORIES)].copy()
+
+        if gdf.empty:
+            print("  no matching taxa")
+            continue
+        if targets is not None:
+            print_scientific_name_check(gdf, targets, path)
+
+        # ── Distribution record filter ────────────────────────────────────────
         gdf, drop_reasons = filter_iucn_distribution_records(gdf)
         if gdf.empty:
-            print(f"  no usable distribution records after filtering {before:,} target rows; dropped: {format_counter(drop_reasons)}")
+            print(f"  no usable distribution records after filtering; dropped: {format_counter(drop_reasons)}")
             continue
 
+        cat_col = first_existing_column(gdf.columns, ["category", "red_list_category", "rl_category", "rlcat", "status"])
         citation_col = first_existing_column(gdf.columns, ["citation", "cite", "source", "sources"])
         year_col = first_existing_column(gdf.columns, ["year", "yr", "year_", "yrcompiled"])
         legend_col = first_existing_column(gdf.columns, ["legend"])
         presence_col = first_existing_column(gdf.columns, ["presence"])
         seasonal_col = first_existing_column(gdf.columns, ["seasonal"])
 
+        gdf["spatial_package"] = package
+        gdf["spatial_category"] = gdf[cat_col].str.strip().str.upper() if cat_col else None
         gdf["source_path"] = os.path.basename(path)
         gdf["spatial_citation"] = gdf[citation_col] if citation_col else None
         gdf["spatial_year"] = gdf[year_col] if year_col else None
@@ -284,23 +349,18 @@ def clean_spatial_data(targets_path, input_dir, output_path, all_shapefiles=Fals
         gdf["spatial_seasonal"] = gdf[seasonal_col] if seasonal_col else None
 
         keep_cols = [
-            "taxonid",
-            "geometry",
-            "source_path",
-            "spatial_citation",
-            "spatial_year",
-            "spatial_legend",
-            "spatial_presence",
-            "spatial_seasonal",
+            "taxonid", "geometry", "spatial_package", "spatial_category",
+            "source_path", "spatial_citation", "spatial_year",
+            "spatial_legend", "spatial_presence", "spatial_seasonal",
         ]
         frames.append(gdf[keep_cols])
+        msg = f"kept {len(gdf):,}/{file_raw:,} rows | {gdf['taxonid'].nunique():,}/{file_raw_taxa:,} taxa"
         if drop_reasons:
-            print(f"  kept {len(gdf):,}/{before:,} target records; dropped: {format_counter(drop_reasons)}")
-        else:
-            print(f"  kept {len(gdf):,}/{before:,} target records; dropped: none")
+            msg += f"; distribution filter dropped: {format_counter(drop_reasons)}"
+        print(f"  {msg}")
 
     if not frames:
-        raise RuntimeError("No spatial records matched the target taxa after filtering")
+        raise RuntimeError("No spatial records matched after filtering")
 
     all_spatial = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), geometry="geometry", crs="EPSG:4326")
     all_spatial = all_spatial[all_spatial.geometry.notna() & ~all_spatial.geometry.is_empty].copy()
@@ -313,26 +373,28 @@ def clean_spatial_data(targets_path, input_dir, output_path, all_shapefiles=Fals
     fallback_points = all_spatial[point_mask & ~all_spatial["taxonid"].astype(int).isin(polygon_taxa)].copy()
     cleaned = gpd.GeoDataFrame(pd.concat([polygons, fallback_points], ignore_index=True), geometry="geometry", crs="EPSG:4326")
 
+    cleaned["geometry"] = cleaned["geometry"].map(make_valid)
+    cleaned = cleaned[cleaned.geometry.notna() & ~cleaned.geometry.is_empty].copy()
+
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     driver = "GeoJSON" if output_path.suffix.lower() in {".geojson", ".json"} else None
-    if driver:
-        cleaned.to_file(output_path, driver=driver)
-    else:
-        cleaned.to_file(output_path)
+    cleaned.to_file(output_path, driver=driver) if driver else cleaned.to_file(output_path)
 
     print(f"Written: {output_path}")
-    print(f"Clean records: {len(cleaned):,}")
-    print(f"Species with polygons: {len(polygon_taxa):,}")
-    print(f"Species with fallback points: {fallback_points['taxonid'].nunique():,}")
+    print(f"Raw records loaded: {total_raw:,} → kept: {len(cleaned):,} ({len(cleaned)/total_raw*100:.1f}%)")
+    print(f"Taxa with polygons: {len(polygon_taxa):,} | taxa with fallback points only: {fallback_points['taxonid'].nunique():,}")
 
 
 def main():
     args = parse_args()
+    packages = [p.strip() for p in args.packages.split(",")] if args.packages else None
     clean_spatial_data(
-        targets_path=args.targets,
         input_dir=args.input_dir,
         output_path=args.output,
+        targets_path=args.targets,
+        packages=packages,
+        birds_filter_csv=args.birds_filter_csv,
         all_shapefiles=args.all_shapefiles,
     )
 
