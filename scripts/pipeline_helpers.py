@@ -81,6 +81,8 @@ SPATIAL_PACKAGE_CONFIG = {
 RUN_MODE_SPATIAL_PACKAGES = {
     "sample": ["MAMMALS"],
     "sample_birds": ["BIRDS"],
+    "sample_fish": ["FW_FISH", "SHARKS_RAYS_CHIMAERAS"],
+    "sample_other": ["REPTILES", "AMPHIBIANS", "FW_CRABS", "FW_CRAYFISH", "FW_SHRIMPS", "LOBSTERS"],
     "full_mammals": ["MAMMALS"],
     "full_other": [
         "REPTILES",
@@ -207,7 +209,7 @@ def iucn_cache_path(path, params):
     return os.path.join(IUCN_CACHE_DIR, f"{digest}.json")
 
 
-def iucn_get(path, params=None):
+def iucn_get(path, params=None, retries=4):
     """GET one IUCN API resource with auth, local JSON cache, and rate limiting."""
     params = {k: v for k, v in (params or {}).items() if v is not None}
     cache_path = iucn_cache_path(path, params)
@@ -216,10 +218,19 @@ def iucn_get(path, params=None):
             return json.load(f)
 
     headers = {"Authorization": require_iucn_token(), "User-Agent": USER_AGENT}
-    r = requests.get(f"{IUCN_BASE}{path}", params=params, headers=headers, timeout=45)
-    if r.status_code == 401:
-        raise RuntimeError("IUCN rejected the API token. Check IUCN_TOKEN.")
-    r.raise_for_status()
+    for attempt in range(retries):
+        r = requests.get(f"{IUCN_BASE}{path}", params=params, headers=headers, timeout=45)
+        if r.status_code == 401:
+            raise RuntimeError("IUCN rejected the API token. Check IUCN_TOKEN.")
+        if r.status_code == 429:
+            wait = 2 ** attempt * 5
+            tqdm.write(f"  [IUCN] 429 rate limit — waiting {wait}s before retry")
+            time.sleep(wait)
+            continue
+        r.raise_for_status()
+        break
+    else:
+        r.raise_for_status()
     data = r.json()
 
     if USE_IUCN_CACHE:
@@ -230,7 +241,7 @@ def iucn_get(path, params=None):
     return data
 
 
-def iucn_get_optional(path, params=None, allowed_statuses=(404,)):
+def iucn_get_optional(path, params=None, allowed_statuses=(404,), retries=4):
     """GET one IUCN resource, returning None for expected missing endpoints/rows."""
     params = {k: v for k, v in (params or {}).items() if v is not None}
     cache_path = iucn_cache_path(path, params)
@@ -239,13 +250,22 @@ def iucn_get_optional(path, params=None, allowed_statuses=(404,)):
             return json.load(f)
 
     headers = {"Authorization": require_iucn_token(), "User-Agent": USER_AGENT}
-    r = requests.get(f"{IUCN_BASE}{path}", params=params, headers=headers, timeout=45)
-    if r.status_code in allowed_statuses:
-        time.sleep(SLEEP_IUCN)
-        return None
-    if r.status_code == 401:
-        raise RuntimeError("IUCN rejected the API token. Check IUCN_TOKEN.")
-    r.raise_for_status()
+    for attempt in range(retries):
+        r = requests.get(f"{IUCN_BASE}{path}", params=params, headers=headers, timeout=45)
+        if r.status_code in allowed_statuses:
+            time.sleep(SLEEP_IUCN)
+            return None
+        if r.status_code == 401:
+            raise RuntimeError("IUCN rejected the API token. Check IUCN_TOKEN.")
+        if r.status_code == 429:
+            wait = 2 ** attempt * 5
+            tqdm.write(f"  [IUCN] 429 rate limit — waiting {wait}s before retry")
+            time.sleep(wait)
+            continue
+        r.raise_for_status()
+        break
+    else:
+        r.raise_for_status()
     data = r.json()
     if USE_IUCN_CACHE:
         os.makedirs(IUCN_CACHE_DIR, exist_ok=True)
@@ -387,6 +407,7 @@ def spatial_manifest_from_clean_file(clean_path, run_mode):
     if not os.path.exists(clean_path):
         raise FileNotFoundError(f"Clean spatial file not found: {clean_path}. Run the spatial cleaning cell first.")
 
+    os.environ["OGR_GEOJSON_MAX_OBJ_SIZE"] = "0"
     gdf = gpd.read_file(clean_path)
     required = {"taxonid", "spatial_package"}
     missing = required - set(gdf.columns)
@@ -412,7 +433,7 @@ def spatial_manifest_from_clean_file(clean_path, run_mode):
     missing_category = manifest["spatial_category"].fillna("").astype(str).str.strip().eq("")
     manifest = manifest[displayable_mask | missing_category].copy()
 
-    if run_mode in ("sample", "sample_birds"):
+    if run_mode in ("sample", "sample_birds", "sample_fish", "sample_other"):
         manifest = manifest.head(SAMPLE_LIMIT).copy()
 
     manifest.attrs["all_spatial_taxonids"] = all_spatial_taxonids
@@ -518,7 +539,7 @@ def selected_spatial_manifest_for_run_mode(run_mode):
         f"{skipped:,} skipped as non-displayable spatial categories; "
         f"{missing_category.sum():,} had no spatial category and were kept"
     )
-    if run_mode in ("sample", "sample_birds"):
+    if run_mode in ("sample", "sample_birds", "sample_fish", "sample_other"):
         manifest = manifest.head(SAMPLE_LIMIT).copy()
     manifest.attrs["all_spatial_taxonids"] = all_spatial_taxonids
     print(f"Spatial whitelist taxa fetched by API: {len(manifest):,}")
@@ -1019,6 +1040,7 @@ def load_clean_spatial_file(path, allowed_taxon_ids=None):
     """Load a cleaned spatial file, normalize required columns, and optionally filter IDs."""
     if not os.path.exists(path):
         raise FileNotFoundError(f"Run the spatial cleaning cell first: {path}")
+    os.environ["OGR_GEOJSON_MAX_OBJ_SIZE"] = "0"
     gdf = gpd.read_file(path)
     if gdf.crs and gdf.crs.to_epsg() != 4326:
         gdf = gdf.to_crs(4326)
@@ -1515,29 +1537,96 @@ def query_wikidata_by_names(unresolved_taxonids, df):
             print(f"  P225 batch {i // batch_size + 1} failed: {e}")
 
     # ── Pass 2: entity search for taxa still missing ────────────────────────────
-    # Collect the original IUCN name for each still-unresolved taxonid
     resolved_iids = set(mapping.keys())
-    still_missing_rows = unresolved_rows[
-        ~unresolved_rows["taxonid"].astype(str).isin(resolved_iids)
-    ]
+    still_missing_rows = unresolved_rows[~unresolved_rows["taxonid"].astype(str).isin(resolved_iids)]
+    http_retry_rows = []  # rows that failed due to HTTP errors, retried at the end
     for i, (_, row) in enumerate(still_missing_rows.iterrows(), 1):
         sci_name = str(row.get("scientific_name", "")).strip()
         common_name = str(row.get("main_common_name", "")).strip()
         iid = str(row["taxonid"])
         print(f"  [{i}/{len(still_missing_rows)}] {sci_name}", end=" ... ", flush=True)
         entry = None
+        http_error = False
         for search_term in filter(None, [sci_name, common_name]):
             try:
                 entry = wikidata_entity_search(search_term)
+            except requests.exceptions.RequestException as e:
+                print(f"  HTTP error for {search_term!r}: {e}")
+                http_error = True
             except Exception as e:
                 print(f"  Entity search failed for {search_term!r}: {e}")
             finally:
                 time.sleep(2.0)
             if entry:
                 break
-        print("found" if entry else "not found")
+        if http_error and not entry:
+            http_retry_rows.append(row)
+            print("http error — will retry")
+        else:
+            print("found" if entry else "not found")
         if entry:
             _merge_entry(mapping, iid, entry)
+
+    # ── Pass 3: direct Wikipedia title lookup for taxa still missing ─────────────
+    resolved_iids = set(mapping.keys())
+    still_missing_rows_3 = unresolved_rows[~unresolved_rows["taxonid"].astype(str).isin(resolved_iids)]
+    if not still_missing_rows_3.empty:
+        print(f"Wikipedia direct search: {len(still_missing_rows_3)} taxa still unresolved")
+    for i, (_, row) in enumerate(still_missing_rows_3.iterrows(), 1):
+        sci_name = str(row.get("scientific_name", "")).strip()
+        common_name = str(row.get("main_common_name", "")).strip()
+        iid = str(row["taxonid"])
+        print(f"  [{i}/{len(still_missing_rows_3)}] {sci_name}", end=" ... ", flush=True)
+        entry = None
+        http_error = False
+        for search_term in filter(None, [sci_name, common_name]):
+            try:
+                entry = wikipedia_direct_search(search_term)
+            except requests.exceptions.RequestException as e:
+                print(f"  HTTP error for {search_term!r}: {e}")
+                http_error = True
+            except Exception as e:
+                print(f"  Wikipedia search failed for {search_term!r}: {e}")
+            finally:
+                time.sleep(SLEEP_WIKI)
+            if entry:
+                break
+        if http_error and not entry:
+            if not any(str(r.get("taxonid")) == iid for r in http_retry_rows):
+                http_retry_rows.append(row)
+            print("http error — will retry")
+        else:
+            print("found" if entry else "not found")
+        if entry:
+            _merge_entry(mapping, iid, entry)
+
+    # ── HTTP retry: re-run failed rows at the end ────────────────────────────────
+    if http_retry_rows:
+        print(f"HTTP retry: {len(http_retry_rows)} taxa")
+        time.sleep(5.0)
+        for row in http_retry_rows:
+            sci_name = str(row.get("scientific_name", "")).strip()
+            common_name = str(row.get("main_common_name", "")).strip()
+            iid = str(row["taxonid"])
+            if iid in mapping:
+                continue
+            print(f"  retry {sci_name}", end=" ... ", flush=True)
+            entry = None
+            for search_term in filter(None, [sci_name, common_name]):
+                for fn in [wikidata_entity_search, wikipedia_direct_search]:
+                    try:
+                        entry = fn(search_term)
+                    except Exception:
+                        pass
+                    finally:
+                        time.sleep(2.0)
+                    if entry:
+                        break
+                if entry:
+                    break
+            print("found" if entry else "not found")
+            if entry:
+                _merge_entry(mapping, iid, entry)
 
     # ── Summary ─────────────────────────────────────────────────────────────────
     if mapping:
@@ -1561,12 +1650,127 @@ def query_wikidata_by_names(unresolved_taxonids, df):
         }
     )
     if still_missing_names:
-        print(f"  Still missing after name fallback: {still_missing_names}")
+        print(f"  Still missing after all fallbacks (Wikidata P225, entity search, Wikipedia direct): {still_missing_names}")
     return mapping
+
+
+def search_inaturalist_image(scientific_name, retries=3):
+    """Search iNaturalist taxa API for a CC-licensed photo.
+
+    Returns (image_url, attribution, license_code) or (None, None, None).
+    Only returns images with an explicit CC license — skips all-rights-reserved.
+    """
+    for attempt in range(retries):
+        try:
+            r = requests.get(
+                "https://api.inaturalist.org/v1/taxa",
+                params={"q": scientific_name, "rank": "species,subspecies", "per_page": 1, "is_active": "true"},
+                headers={"User-Agent": USER_AGENT},
+                timeout=15,
+            )
+            if r.status_code == 429:
+                time.sleep(2 ** attempt * 3)
+                continue
+            r.raise_for_status()
+            break
+        except requests.exceptions.Timeout:
+            if attempt == retries - 1:
+                return None, None, None
+            time.sleep(2 ** attempt * 2)
+    else:
+        return None, None, None
+
+    results = r.json().get("results", [])
+    if not results:
+        return None, None, None
+
+    taxon = results[0]
+    matched_name = (taxon.get("name") or "").lower()
+    if scientific_name.lower().split()[0] not in matched_name:
+        return None, None, None
+
+    photo = taxon.get("default_photo")
+    if not photo:
+        return None, None, None
+
+    license_code = (photo.get("license_code") or "").lower()
+    if not license_code or license_code == "all rights reserved":
+        return None, None, None
+
+    image_url = photo.get("medium_url") or photo.get("url")
+    attribution = photo.get("attribution", "")
+    return image_url, attribution, license_code
+
+
+def wikipedia_direct_search(search_term, lang="en", retries=3):
+    """Check if a Wikipedia page exists for search_term (resolving redirects). Returns an entry dict or None."""
+    for attempt in range(retries):
+        try:
+            r = requests.get(
+                f"https://{lang}.wikipedia.org/w/api.php",
+                params={"action": "query", "titles": search_term, "redirects": True, "format": "json"},
+                headers={"User-Agent": USER_AGENT},
+                timeout=15,
+            )
+            if r.status_code == 429:
+                time.sleep(2 ** attempt * 3)
+                continue
+            r.raise_for_status()
+            break
+        except requests.exceptions.Timeout:
+            if attempt == retries - 1:
+                raise
+            time.sleep(2 ** attempt * 2)
+    else:
+        return None
+
+    pages = r.json().get("query", {}).get("pages", {})
+    for page_id, page in pages.items():
+        if page_id == "-1":
+            return None
+        resolved_title = page.get("title", search_term)
+        project = f"{lang}.wikipedia.org"
+        wiki_url = f"https://{project}/wiki/{urllib.parse.quote(resolved_title.replace(' ', '_'))}"
+        return {
+            "wiki_title": resolved_title,
+            "wiki_language": lang,
+            "wiki_project": project,
+            "wiki_url": wiki_url,
+            "wikidata_url": None,
+            "wikidata_image_url": None,
+            "wiki_rank": article_rank(lang),
+        }
+    return None
+
+
+def log_dropped(dropped_log, ids_before, ids_after, stage, reason, ref_df=None):
+    """Append dropped taxa to dropped_log with metadata from ref_df when available."""
+    lost = set(int(x) for x in ids_before) - set(int(x) for x in ids_after)
+    if not lost:
+        return
+    for tid in lost:
+        row = {"taxonid": tid, "drop_stage": stage, "drop_reason": reason,
+               "scientific_name": None, "main_common_name": None,
+               "category_iucn": None, "taxon_group": None}
+        if ref_df is not None and not ref_df.empty:
+            match = ref_df[ref_df["taxonid"].astype(int) == tid]
+            if not match.empty:
+                r = match.iloc[0]
+                row["scientific_name"] = r.get("scientific_name")
+                row["main_common_name"] = r.get("main_common_name")
+                row["category_iucn"] = r.get("category_iucn") or r.get("category")
+                row["taxon_group"] = r.get("taxon_group")
+        dropped_log.append(row)
+    print(f"  [{stage}] {len(lost)} taxa dropped: {reason}")
+
+
+pageview_throttled = False  # set to True after first 429; caller should increase inter-call sleep
+pageview_gave_up = False   # set to True when a 429 give-up occurs; caller should stop the loop
 
 
 def get_pageviews(project, title, retries=3):
     """Return total Wikipedia views over the last 12 months for one project/title, or 0 on error."""
+    global pageview_throttled
     encoded = urllib.parse.quote(title, safe="")
     project = project or "en.wikipedia.org"
     url = f"{PAGEVIEWS_BASE}/{project}/all-access/all-agents/{encoded}/monthly/{START}/{END}"
@@ -1576,11 +1780,15 @@ def get_pageviews(project, title, retries=3):
             if r.status_code == 404:
                 return 0
             if r.status_code == 429:
-                wait = 2**attempt * 5
-                tqdm.write(
-                    f"  [pageviews] 429 rate limit — waiting {wait}s before retry"
-                )
-                time.sleep(wait)
+                if not pageview_throttled:
+                    pageview_throttled = True
+                    tqdm.write("  [pageviews] 429 — waiting 10s (throttle mode ON)")
+                    time.sleep(10)
+                else:
+                    tqdm.write(f"  [pageviews] 429 again for {title!r} — waiting 60s then giving up")
+                    time.sleep(60)
+                    pageview_gave_up = True
+                    return 0
                 continue
             if not r.ok:
                 tqdm.write(f"  [pageviews] HTTP {r.status_code} for {title!r}")
@@ -1641,13 +1849,54 @@ def commons_search_terms(scientific_name, common_name):
     return terms
 
 
-def is_probable_range_map_title(value):
-    """Reject image titles or URLs that likely describe a range/distribution map, not the animal."""
+def wikimedia_tiff_to_thumbnail(url, width=800):
+    """Convert a Wikimedia Commons TIFF URL to its JPEG thumbnail equivalent.
+
+    Handles two URL formats:
+    - Special:FilePath: commons.wikimedia.org/wiki/Special:FilePath/File.tif
+      → append ?width=800 (Wikimedia serves a JPEG at that width)
+    - upload.wikimedia.org: .../commons/a/bc/File.tif
+      → .../commons/thumb/a/bc/File.tif/800px-File.jpg
+    """
+    if not url or not isinstance(url, str):
+        return url
+    lower = url.lower().split("?")[0]
+    if not (lower.endswith(".tif") or lower.endswith(".tiff")):
+        return url
+
+    # Special:FilePath format
+    if "Special:FilePath" in url or "special:filepath" in url.lower():
+        base = url.split("?")[0]
+        return f"{base}?width={width}"
+
+    # upload.wikimedia.org format
+    if "upload.wikimedia.org" not in url or "/thumb/" in url:
+        return url
+    parts = url.split("/")
+    filename = parts[-1]
+    basename = filename.rsplit(".", 1)[0]
+    thumb_parts = parts[:]
+    idx = next((i + 1 for i, p in enumerate(thumb_parts) if p == "commons"), None)
+    if idx is None:
+        return url
+    thumb_parts.insert(idx, "thumb")
+    thumb_parts.append(f"{width}px-{basename}.jpg")
+    return "/".join(thumb_parts)
+
+
+def is_probable_range_map_title(value, scientific_name=None, common_name=None):
+    """Reject image titles or URLs that likely describe a range/distribution map, not the animal.
+
+    A token match is ignored when the same token appears in the species' scientific or common name
+    — e.g. 'Varzea Piculet' contains 'area', 'Range frog' contains 'range'.
+    """
     normalized = urllib.parse.unquote(str(value or "")).lower().replace("_", " ")
-    return any(
-        token in normalized
-        for token in ["distrib", "range", "extent", "area", "zon", "map"]
-    )
+    sci = (scientific_name or "").lower()
+    common = (common_name or "").lower()
+    for token in ["distrib", "range", "extent", "area", "zon", "map"]:
+        if token in normalized and token not in sci and token not in common:
+            return True
+    return False
 
 
 def search_commons_image(scientific_name, common_name):
