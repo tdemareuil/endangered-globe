@@ -524,9 +524,10 @@
                             <p>Spatial placement uses IUCN and BirdLife range data. The representative geometry is
                                 chosen from a prioritized combination of presence (Extant, Probably Extant, Possibly
                                 Extant) and seasonality (Resident, Breeding, Non-breeding, Passage). Centroids are then
-                                computed to get one point per species. Species with large disconnected ranges can
-                                receive several label points (max 2), but secondary clusters are kept only when they
-                                represent enough of the total mapped range (min 10%).</p>
+                                computed to get one point per species.
+                                <span id="centroid-sentence-primary">Species with disconnected ranges get displayed on their largest distribution area.</span>
+                                <span id="centroid-sentence-multi">Species with disconnected ranges can receive several label points (max 2), but secondary clusters are kept only when they represent enough of the total mapped range (min 20%).</span>
+                            </p>
                             <p>Name size and weight come from Wikipedia pageviews over the last completed year
                                 (Jun&nbsp;25 – May&nbsp;26). More-viewed animals appear earlier; zooming in reveals
                                 less-viewed species. Photos come from Wikidata first, then Wikipedia and Wikimedia
@@ -801,16 +802,16 @@
                 : null;
         }
 
-        const primaryPointFilter = ['==', ['coalesce', ['get', 'centroid_rank'], 1], 1];
-        const SHOW_PRIMARY_ONLY = false; // set to true to hide secondary centroids
+        const SHOW_PRIMARY_ONLY = true; // set to false to show secondary centroids
+        document.getElementById('centroid-sentence-primary').style.display = SHOW_PRIMARY_ONLY ? '' : 'none';
+        document.getElementById('centroid-sentence-multi').style.display = SHOW_PRIMARY_ONLY ? 'none' : '';
 
         function getAnimalFilter() {
             const filters = [
-                ...(SHOW_PRIMARY_ONLY ? [primaryPointFilter] : []),
                 getChoiceFilter('category_iucn', selectedThreats),
                 getChoiceFilter('taxon_group', selectedAnimalGroups)
             ].filter(Boolean);
-            return filters.length === 1 ? filters[0] : ['all', ...filters];
+            return filters.length ? ['all', ...filters] : null;
         }
 
         function applyAnimalFilter() {
@@ -821,6 +822,7 @@
 
         function featureMatchesCurrentFilters(feature) {
             const props = feature.properties || {};
+            if (SHOW_PRIMARY_ONLY && (props.centroid_rank ?? 1) !== 1) return false;
             if (selectedThreats.size && !selectedThreats.has(props.category_iucn)) return false;
             if (selectedAnimalGroups.size && !selectedAnimalGroups.has(props.taxon_group)) return false;
             return true;
@@ -1081,6 +1083,9 @@
 
         map.on('load', async () => {
             animals = normalizeAnimalGroups(await loadAnimals());
+            if (SHOW_PRIMARY_ONLY) {
+                animals = { ...animals, features: animals.features.filter(f => (f.properties.centroid_rank ?? 1) === 1) };
+            }
             const speciesCount = new Set(animals.features.map(f => f.properties.taxonid)).size;
             const speciesCountEl = document.getElementById('species-count');
             if (speciesCountEl) speciesCountEl.textContent = speciesCount.toLocaleString();
@@ -1161,7 +1166,7 @@
             const {
                 taxonid, label, category_iucn, taxon_class, taxon_group, popularity,
                 wiki_title, wiki_project, wiki_url, image_url, image_source,
-                wikidata_url, wikidata_image_url, wikipedia_thumbnail_url, commons_image_url, commons_image_page_url,
+                wikidata_url, wikidata_image_url, wikipedia_thumbnail_url, commons_image_url, commons_image_page_url, commons_image_credit,
                 iucn_assessment_url,
                 population_trend, number_of_mature_individuals
             } = feature.properties || {};
@@ -1183,13 +1188,19 @@
                 || safeExternalUrl(wikidata_image_url);
             const wikidataHref = safeExternalUrl(wikidata_url) || wikidataUrlFromTaxonId(taxonid);
             const iucnHref = safeExternalUrl(iucn_assessment_url);
+            const isInat = image_source === 'iNaturalist';
+            const isEol = image_source === 'EOL';
+            const inatCredit = (isInat || isEol) && commons_image_credit
+                ? `<span class="popup-image-source" style="display:block;margin-top:3px">${escapeHtml(commons_image_credit)}</span>`
+                : '';
+            const imageLabel = isInat ? 'iNaturalist ©' : isEol ? 'EOL ©' : 'Image';
             const sourceLinks = [
                 iucnHref ? `<a href="${escapeHtml(iucnHref)}" target="_blank" rel="noopener noreferrer">IUCN</a>` : '',
                 wikidataHref ? `<a href="${escapeHtml(wikidataHref)}" target="_blank" rel="noopener noreferrer">Wikidata</a>` : '',
-                imageCreditUrl ? `<a href="${escapeHtml(imageCreditUrl)}" target="_blank" rel="noopener noreferrer">Image</a>` : '',
+                imageCreditUrl ? `<a href="${escapeHtml(imageCreditUrl)}" target="_blank" rel="noopener noreferrer">${imageLabel}</a>` : '',
             ].filter(Boolean).join(' <span aria-hidden="true">|</span> ');
-            const imageSourceHtml = sourceLinks
-                ? `<span class="popup-image-source">${sourceLinks}</span>`
+            const imageSourceHtml = (sourceLinks || inatCredit)
+                ? `<span class="popup-image-source">${sourceLinks}</span>${inatCredit}`
                 : '';
             const populationTrendHtml = hasDisplayValue(population_trend)
                 ? `<span style="color:rgba(255,255,255,0.7)">Population trend: ${escapeHtml(formatDataValue(population_trend))}</span><br>`

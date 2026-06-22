@@ -65,7 +65,7 @@ When the shapefile exposes a `category` attribute, the notebook uses it as a con
 The IUCN API token is not stored in the notebook. Set it with the `IUCN_TOKEN` environment variable, or put it in the local ignored file `data/secrets/iucn_token.txt`.
 
 Available run modes:
-- `sample` — small run seeded from the local `MAMMALS` spatial package for fast iteration.
+- `sample_mammals` — small run seeded from the local `MAMMALS` spatial package for fast iteration.
 - `sample_birds` — small run seeded from the local `BIRDS` spatial package for fast iteration.
 - `full_mammals` — taxa present in the local `MAMMALS` spatial package.
 - `full_other` — taxa present in the local `REPTILES`, `AMPHIBIANS`, `FW_CRABS`, `FW_CRAYFISH`, `FW_SHRIMPS`, and `LOBSTERS` spatial packages.
@@ -111,7 +111,7 @@ What we take: geographic boundaries and source spatial geometries for species ha
 
 Local spatial downloads live in `data/shapefiles/` and are ignored by git. The notebook first builds a spatial manifest from explicit package folders:
 
-- `sample`, `full_mammals` → `data/shapefiles/MAMMALS/*.shp`
+- `sample_mammals`, `full_mammals` → `data/shapefiles/MAMMALS/*.shp`
 - `sample_birds`, `full_birds` → `data/shapefiles/BIRDS/*.gpkg`
 - `full_other` → `data/shapefiles/REPTILES/*.shp`, `AMPHIBIANS/*.shp`, `FW_CRABS/*.shp`, `FW_CRAYFISH/*.shp`, `FW_SHRIMPS/*.shp`, `LOBSTERS/*.shp`
 - `full_fish` → `data/shapefiles/FW_FISH/*.shp`, `SHARKS_RAYS_CHIMAERAS/*.shp`
@@ -122,7 +122,7 @@ Spatial download coverage log for IUCN spatial-download categories. Keep this le
 
 | IUCN spatial category / local folder | Status | IUCN class metadata expected | UI group | Run mode | Notes |
 |---|---|---|---|---|---|
-| Mammals / `MAMMALS` | Covered | `Mammalia` | Mammals | `sample`, `full_mammals` | Split files such as `MAMMALS_PART*.shp` are concatenated by the cleaning script. |
+| Mammals / `MAMMALS` | Covered | `Mammalia` | Mammals | `sample_mammals`, `full_mammals` | Split files such as `MAMMALS_PART*.shp` are concatenated by the cleaning script. |
 | Birds / `BIRDS` | Covered | `Aves` | Birds | `sample_birds`, `full_birds` | BirdLife BOTW GPKG format; taxon ID column is `sisid`. |
 | Amphibians / `AMPHIBIANS` | Covered | `Amphibia` | Other (Reptiles, Amphib., Crust.) | `full_other` | Grouped with reptiles and selected crustaceans in the UI. |
 | Reptiles / `REPTILES` | Covered | `Reptilia` | Other (Reptiles, Amphib., Crust.) | `full_other` | Grouped with amphibians and selected crustaceans in the UI. |

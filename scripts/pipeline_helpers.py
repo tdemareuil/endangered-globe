@@ -79,7 +79,7 @@ SPATIAL_PACKAGE_CONFIG = {
 }
 
 RUN_MODE_SPATIAL_PACKAGES = {
-    "sample": ["MAMMALS"],
+    "sample_mammals": ["MAMMALS"],
     "sample_birds": ["BIRDS"],
     "sample_fish": ["FW_FISH", "SHARKS_RAYS_CHIMAERAS"],
     "sample_other": ["REPTILES", "AMPHIBIANS", "FW_CRABS", "FW_CRAYFISH", "FW_SHRIMPS", "LOBSTERS"],
@@ -433,7 +433,7 @@ def spatial_manifest_from_clean_file(clean_path, run_mode):
     missing_category = manifest["spatial_category"].fillna("").astype(str).str.strip().eq("")
     manifest = manifest[displayable_mask | missing_category].copy()
 
-    if run_mode in ("sample", "sample_birds", "sample_fish", "sample_other"):
+    if run_mode in ("sample_mammals", "sample_birds", "sample_fish", "sample_other"):
         manifest = manifest.head(SAMPLE_LIMIT).copy()
 
     manifest.attrs["all_spatial_taxonids"] = all_spatial_taxonids
@@ -539,7 +539,7 @@ def selected_spatial_manifest_for_run_mode(run_mode):
         f"{skipped:,} skipped as non-displayable spatial categories; "
         f"{missing_category.sum():,} had no spatial category and were kept"
     )
-    if run_mode in ("sample", "sample_birds", "sample_fish", "sample_other"):
+    if run_mode in ("sample_mammals", "sample_birds", "sample_fish", "sample_other"):
         manifest = manifest.head(SAMPLE_LIMIT).copy()
     manifest.attrs["all_spatial_taxonids"] = all_spatial_taxonids
     print(f"Spatial whitelist taxa fetched by API: {len(manifest):,}")
@@ -1655,10 +1655,10 @@ def query_wikidata_by_names(unresolved_taxonids, df):
 
 
 def search_inaturalist_image(scientific_name, retries=3):
-    """Search iNaturalist taxa API for a CC-licensed photo.
+    """Search iNaturalist taxa API for a photo (CC-licensed or all-rights-reserved).
 
-    Returns (image_url, attribution, license_code) or (None, None, None).
-    Only returns images with an explicit CC license — skips all-rights-reserved.
+    Returns (image_url, attribution, license_code, inat_url) or (None, None, None, None).
+    All-rights-reserved photos are included — callers must display attribution and link back.
     """
     for attempt in range(retries):
         try:
@@ -1675,31 +1675,107 @@ def search_inaturalist_image(scientific_name, retries=3):
             break
         except requests.exceptions.Timeout:
             if attempt == retries - 1:
-                return None, None, None
+                return None, None, None, None
             time.sleep(2 ** attempt * 2)
     else:
-        return None, None, None
+        return None, None, None, None
 
     results = r.json().get("results", [])
     if not results:
-        return None, None, None
+        return None, None, None, None
 
     taxon = results[0]
     matched_name = (taxon.get("name") or "").lower()
     if scientific_name.lower().split()[0] not in matched_name:
-        return None, None, None
+        return None, None, None, None
 
     photo = taxon.get("default_photo")
     if not photo:
-        return None, None, None
+        return None, None, None, None
 
-    license_code = (photo.get("license_code") or "").lower()
-    if not license_code or license_code == "all rights reserved":
-        return None, None, None
+    taxon_id = taxon.get("id")
+    taxon_slug = (taxon.get("name") or "").replace(" ", "-")
+    inat_url = f"https://www.inaturalist.org/taxa/{taxon_id}-{taxon_slug}" if taxon_id else None
 
     image_url = photo.get("medium_url") or photo.get("url")
-    attribution = photo.get("attribution", "")
-    return image_url, attribution, license_code
+    attribution = re.sub(r",?\s*uploaded by [^,)]+", "", photo.get("attribution", "")).strip()
+    license_code = (photo.get("license_code") or "all rights reserved").lower()
+    return image_url, attribution, license_code, inat_url
+
+
+def search_eol_image(scientific_name, retries=3):
+    """Search Encyclopedia of Life for a species photo.
+
+    Returns (image_url, attribution, license_code, eol_url) or (None, None, None, None).
+    """
+    # Step 1: search for the species page ID
+    for attempt in range(retries):
+        try:
+            r = requests.get(
+                "https://eol.org/api/search/1.0.json",
+                params={"q": scientific_name, "page": 1, "exact": "false"},
+                headers={"User-Agent": USER_AGENT},
+                timeout=15,
+            )
+            if r.status_code == 429:
+                time.sleep(2 ** attempt * 3)
+                continue
+            r.raise_for_status()
+            break
+        except requests.exceptions.Timeout:
+            if attempt == retries - 1:
+                return None, None, None, None
+            time.sleep(2 ** attempt * 2)
+    else:
+        return None, None, None, None
+
+    results = r.json().get("results", [])
+    if not results:
+        return None, None, None, None
+
+    page_id = results[0].get("id")
+    if not page_id:
+        return None, None, None, None
+
+    eol_url = f"https://eol.org/pages/{page_id}"
+
+    # Step 2: fetch page details with images
+    for attempt in range(retries):
+        try:
+            r2 = requests.get(
+                f"https://eol.org/api/pages/1.0/{page_id}.json",
+                params={"images": 1, "details": "true", "common_names": "false", "synonyms": "false"},
+                headers={"User-Agent": USER_AGENT},
+                timeout=15,
+            )
+            if r2.status_code == 429:
+                time.sleep(2 ** attempt * 3)
+                continue
+            r2.raise_for_status()
+            break
+        except requests.exceptions.Timeout:
+            if attempt == retries - 1:
+                return None, None, None, None
+            time.sleep(2 ** attempt * 2)
+    else:
+        return None, None, None, None
+
+    data_objects = r2.json().get("dataObjects", [])
+    images = [
+        obj for obj in data_objects
+        if "StillImage" in obj.get("dataType", "") and obj.get("eolMediaURL") or obj.get("mediaURL")
+    ]
+    if not images:
+        return None, None, None, None
+
+    img = images[0]
+    image_url = img.get("eolMediaURL") or img.get("mediaURL")
+    rights_holder = img.get("rightsHolder") or ""
+    license_url = img.get("license") or ""
+    license_code = license_url.rstrip("/").split("/")[-2] if "creativecommons.org" in license_url else "all rights reserved"
+    attribution = f"© {rights_holder}" if rights_holder else ""
+
+    return image_url, attribution, license_code, eol_url
 
 
 def wikipedia_direct_search(search_term, lang="en", retries=3):
@@ -2041,6 +2117,8 @@ def feature_properties(row):
             getattr(row, "image_lookup_source", None)
         ),
         "label": row.label,
+        "scientific_name": clean_json_value(getattr(row, "scientific_name", None)),
+        "main_common_name": clean_json_value(getattr(row, "main_common_name", None)),
         "category_iucn": row.category_iucn,
         "population_trend": clean_json_value(row.population_trend),
         "number_of_mature_individuals": clean_json_value(
