@@ -31,6 +31,7 @@ from tqdm.notebook import tqdm
 
 # Runtime configuration. The notebook calls configure() after defining its knobs.
 IUCN_TOKEN = ""
+WIKIMEDIA_TOKEN = ""  # Optional — raises rate limit from 500 to 5,000 req/hour
 USER_AGENT = "EndangeredGlobe/1.0"
 TARGET_CATEGORIES = ["EW", "CR", "EN", "VU", "NT", "CD"]
 SLEEP_WIKI = 0.15
@@ -192,6 +193,15 @@ def read_local_secret(path):
     return path.read_text().strip() if path.exists() else ""
 
 
+def wikimedia_headers():
+    """Build request headers for Wikimedia APIs, injecting Bearer token when configured."""
+    h = {"User-Agent": USER_AGENT}
+    token = (WIKIMEDIA_TOKEN or "").strip()
+    if token:
+        h["Authorization"] = f"Bearer {token}"
+    return h
+
+
 def require_iucn_token():
     """Return the configured IUCN token, or stop early with a setup error."""
     token = (IUCN_TOKEN or "").strip()
@@ -273,6 +283,33 @@ def iucn_get_optional(path, params=None, allowed_statuses=(404,), retries=4):
             json.dump(data, f)
     time.sleep(SLEEP_IUCN)
     return data
+
+
+def wikimedia_retry_after(response, default=10):
+    """Return seconds to wait from a Wikimedia 429 Retry-After header, or default."""
+    header = response.headers.get("Retry-After", "")
+    if header:
+        try:
+            wait = int(header)
+            tqdm.write(f"  [Wikimedia] Retry-After: {wait}s")
+            return wait
+        except ValueError:
+            pass
+    return default
+
+
+def geometry_vertex_count(geom):
+    """Count total vertices in a Shapely geometry (all parts and interior rings)."""
+    parts = list(geom.geoms) if hasattr(geom, "geoms") else [geom]
+    return sum(
+        len(p.exterior.coords) + sum(len(i.coords) for i in p.interiors)
+        for p in parts if hasattr(p, "exterior")
+    )
+
+
+def title_fix_possessive(s):
+    """Title-case a string but lowercase the 's' in possessives (e.g. \"Lion'S\" → \"Lion's\")."""
+    return re.sub(r"'(\w)", lambda m: "'" + m.group(1).lower(), str(s).title())
 
 
 def pick_path(obj, *paths):
@@ -1281,7 +1318,7 @@ def query_wikidata_batch(iucn_ids, batch_size=500):
         r = requests.get(
             WIKIDATA_ENDPOINT,
             params={"query": sparql, "format": "json"},
-            headers={"User-Agent": USER_AGENT},
+            headers=wikimedia_headers(),
             timeout=60,
         )
         r.raise_for_status()
@@ -1434,12 +1471,11 @@ def wikidata_entity_search(search_term, retries=3):
                     "format": "json",
                     "limit": 5,
                 },
-                headers={"User-Agent": USER_AGENT},
+                headers=wikimedia_headers(),
                 timeout=15,
             )
             if r.status_code == 429:
-                wait = 2**attempt * 3
-                time.sleep(wait)
+                time.sleep(wikimedia_retry_after(r, default=2**attempt * 3))
                 continue
             r.raise_for_status()
             break
@@ -1459,12 +1495,11 @@ def wikidata_entity_search(search_term, retries=3):
         r2 = requests.get(
             WIKIDATA_ENDPOINT,
             params={"query": sparql, "format": "json"},
-            headers={"User-Agent": USER_AGENT},
+            headers=wikimedia_headers(),
             timeout=30,
         )
         if r2.status_code == 429:
-            wait = 2**attempt * 3
-            time.sleep(wait)
+            time.sleep(wikimedia_retry_after(r2, default=2**attempt * 3))
             continue
         r2.raise_for_status()
         break
@@ -1523,7 +1558,7 @@ def query_wikidata_by_names(unresolved_taxonids, df):
             r = requests.get(
                 WIKIDATA_ENDPOINT,
                 params={"query": sparql, "format": "json"},
-                headers={"User-Agent": USER_AGENT},
+                headers=wikimedia_headers(),
                 timeout=30,
             )
             r.raise_for_status()
@@ -1852,17 +1887,19 @@ def get_pageviews(project, title, retries=3):
     url = f"{PAGEVIEWS_BASE}/{project}/all-access/all-agents/{encoded}/monthly/{START}/{END}"
     for attempt in range(retries):
         try:
-            r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=15)
+            r = requests.get(url, headers=wikimedia_headers(), timeout=15)
             if r.status_code == 404:
                 return 0
             if r.status_code == 429:
                 if not pageview_throttled:
                     pageview_throttled = True
-                    tqdm.write("  [pageviews] 429 — waiting 10s (throttle mode ON)")
-                    time.sleep(10)
+                    wait = wikimedia_retry_after(r, default=10)
+                    tqdm.write(f"  [pageviews] 429 — waiting {wait}s (throttle mode ON)")
+                    time.sleep(wait)
                 else:
-                    tqdm.write(f"  [pageviews] 429 again for {title!r} — waiting 60s then giving up")
-                    time.sleep(60)
+                    wait = wikimedia_retry_after(r, default=60)
+                    tqdm.write(f"  [pageviews] 429 again for {title!r} — waiting {wait}s then giving up")
+                    time.sleep(wait)
                     pageview_gave_up = True
                     return 0
                 continue
@@ -1884,7 +1921,7 @@ def get_wikipedia_thumbnail(project, title):
     project = project or "en.wikipedia.org"
     url = WIKIPEDIA_SUMMARY_URL.format(project=project, title=encoded)
     try:
-        r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=15)
+        r = requests.get(url, headers=wikimedia_headers(), timeout=15)
         if r.status_code == 404:
             return None
         r.raise_for_status()
@@ -1996,7 +2033,7 @@ def search_commons_image(scientific_name, common_name):
             r = requests.get(
                 COMMONS_API_URL,
                 params=params,
-                headers={"User-Agent": USER_AGENT},
+                headers=wikimedia_headers(),
                 timeout=20,
             )
             r.raise_for_status()

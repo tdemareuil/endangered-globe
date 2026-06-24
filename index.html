@@ -323,13 +323,18 @@
             padding: 4px 8px;
         }
 
+        .popup-image-wrap {
+            position: relative;
+            margin: 0 0 10px;
+        }
+
         .popup-species-image {
             display: block;
             width: 100%;
             height: 128px;
             object-fit: cover;
             border-radius: 7px;
-            margin: 0 0 10px;
+            margin: 0;
             background: rgba(255, 255, 255, 0.08);
         }
 
@@ -339,6 +344,36 @@
             height: clamp(180px, 42vh, 260px);
             margin-left: auto;
             margin-right: auto;
+        }
+
+        .popup-slide-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.45);
+            border: none;
+            color: #fff;
+            font-size: 18px;
+            line-height: 1;
+            padding: 5px 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            z-index: 1;
+        }
+
+        .popup-slide-btn:hover {
+            background: rgba(0, 0, 0, 0.72);
+        }
+
+        .popup-slide-prev { left: 5px; }
+        .popup-slide-next { right: 5px; }
+
+        .popup-slide-dots {
+            text-align: center;
+            margin-top: 5px;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.38);
+            letter-spacing: 3px;
         }
 
         .popup-image-source {
@@ -1177,37 +1212,56 @@
             const wikiHref = safeExternalUrl(wiki_url) || wikipediaUrlFromProject(wiki_project, wiki_title || speciesLabel);
             const popularityNumber = Number(popularity);
             const formattedPopularity = Number.isFinite(popularityNumber) ? popularityNumber.toLocaleString() : 'n/a';
-            const safeImageUrl = safeExternalUrl(image_url);
-            const imageHtml = safeImageUrl ? `
-                <img class="popup-species-image" src="${escapeHtml(safeImageUrl)}" alt="${escapeHtml(speciesLabel)}" loading="lazy" onload="if (this.naturalHeight > this.naturalWidth) this.classList.add('is-portrait')" onerror="this.remove()">
-            ` : '';
-            const imageCreditUrl = safeExternalUrl(commons_image_page_url)
-                || safeImageUrl
-                || safeExternalUrl(commons_image_url)
-                || safeExternalUrl(wikipedia_thumbnail_url)
-                || safeExternalUrl(wikidata_image_url);
             const wikidataHref = safeExternalUrl(wikidata_url) || wikidataUrlFromTaxonId(taxonid);
             const iucnHref = safeExternalUrl(iucn_assessment_url);
             const isInat = image_source === 'iNaturalist';
             const isEol = image_source === 'EOL';
-            const inatCredit = (isInat || isEol) && commons_image_credit
-                ? `<span class="popup-image-source" style="display:block;margin-top:3px">${escapeHtml(commons_image_credit)}</span>`
-                : '';
-            const imageLabel = isInat ? 'iNaturalist ©' : isEol ? 'EOL ©' : 'Image';
-            const sourceLinks = [
-                iucnHref ? `<a href="${escapeHtml(iucnHref)}" target="_blank" rel="noopener noreferrer">IUCN</a>` : '',
-                wikidataHref ? `<a href="${escapeHtml(wikidataHref)}" target="_blank" rel="noopener noreferrer">Wikidata</a>` : '',
-                imageCreditUrl ? `<a href="${escapeHtml(imageCreditUrl)}" target="_blank" rel="noopener noreferrer">${imageLabel}</a>` : '',
-            ].filter(Boolean).join(' <span aria-hidden="true">|</span> ');
-            const imageSourceHtml = (sourceLinks || inatCredit)
-                ? `<span class="popup-image-source">${sourceLinks}</span>${inatCredit}`
-                : '';
+
+            // Build slides: primary image + optional Wikidata secondary
+            const slides = [];
+            const safeImageUrl = safeExternalUrl(image_url);
+            if (safeImageUrl) {
+                const primaryCreditUrl = safeExternalUrl(commons_image_page_url) || safeImageUrl
+                    || safeExternalUrl(commons_image_url) || safeExternalUrl(wikipedia_thumbnail_url)
+                    || safeExternalUrl(wikidata_image_url);
+                const primaryLabel = isInat ? 'iNaturalist ©' : isEol ? 'EOL ©' : 'Image';
+                slides.push({ url: safeImageUrl, creditUrl: primaryCreditUrl, label: primaryLabel, credit: (isInat || isEol) ? commons_image_credit : null });
+            }
+            const safeWikidataUrl = safeExternalUrl(wikidata_image_url);
+            if (safeWikidataUrl && safeWikidataUrl !== safeImageUrl) {
+                slides.push({ url: safeWikidataUrl, creditUrl: safeExternalUrl(wikidata_url) || safeWikidataUrl, label: 'Wikidata', credit: null });
+            }
+
+            const hasSlides = slides.length > 0;
+            const imageHtml = hasSlides ? `
+                <div class="popup-image-wrap">
+                    <img class="popup-species-image" id="popup-slide-img" src="${escapeHtml(slides[0].url)}" alt="${escapeHtml(speciesLabel)}" loading="lazy" onload="if(this.naturalHeight>this.naturalWidth)this.classList.add('is-portrait')" onerror="this.style.display='none'">
+                    ${slides.length > 1 ? `
+                        <button class="popup-slide-btn popup-slide-prev">&#8249;</button>
+                        <button class="popup-slide-btn popup-slide-next">&#8250;</button>
+                    ` : ''}
+                </div>
+                ${slides.length > 1 ? '<div class="popup-slide-dots" id="popup-slide-dots">● ○</div>' : ''}
+            ` : '';
+
             const populationTrendHtml = hasDisplayValue(population_trend)
                 ? `<span style="color:rgba(255,255,255,0.7)">Population trend: ${escapeHtml(formatDataValue(population_trend))}</span><br>`
                 : '';
             const matureIndividualsHtml = hasDisplayValue(number_of_mature_individuals)
                 ? `<span style="color:rgba(255,255,255,0.7)">Mature individuals: ${escapeHtml(formatDataValue(number_of_mature_individuals))}</span><br>`
                 : '';
+            const sourceLinks = [
+                iucnHref ? `<a href="${escapeHtml(iucnHref)}" target="_blank" rel="noopener noreferrer">IUCN</a>` : '',
+                wikidataHref ? `<a href="${escapeHtml(wikidataHref)}" target="_blank" rel="noopener noreferrer">Wikidata</a>` : '',
+                slides[0] ? `<a id="popup-img-credit" href="${escapeHtml(slides[0].creditUrl)}" target="_blank" rel="noopener noreferrer">${slides[0].label}</a>` : '',
+            ].filter(Boolean).join(' <span aria-hidden="true">|</span> ');
+            const creditLine = slides[0] && slides[0].credit
+                ? `<span class="popup-image-source" style="display:block;margin-top:3px" id="popup-img-attr">${escapeHtml(slides[0].credit)}</span>`
+                : '<span id="popup-img-attr"></span>';
+            const imageSourceHtml = sourceLinks
+                ? `<span class="popup-image-source">${sourceLinks}</span>${creditLine}`
+                : '';
+
             popup.setLngLat(coords).setHTML(`
                 ${imageHtml}
                 <b style="font-size:14px">
@@ -1220,6 +1274,32 @@
                 <span style="color:rgba(255,255,255,0.6); font-size:11px">Wikipedia views/yr: ${formattedPopularity}</span>
                 ${imageSourceHtml}
             `).addTo(map);
+
+            // Wire up slideshow navigation
+            if (slides.length > 1) {
+                let idx = 0;
+                const el = popup.getElement();
+                const img = el.querySelector('#popup-slide-img');
+                const creditLink = el.querySelector('#popup-img-credit');
+                const attrSpan = el.querySelector('#popup-img-attr');
+                const dots = el.querySelector('#popup-slide-dots');
+
+                const goTo = (newIdx) => {
+                    idx = (newIdx + slides.length) % slides.length;
+                    const slide = slides[idx];
+                    img.classList.remove('is-portrait');
+                    img.style.display = '';
+                    img.onload = () => { if (img.naturalHeight > img.naturalWidth) img.classList.add('is-portrait'); };
+                    img.onerror = () => { img.style.display = 'none'; };
+                    img.src = slide.url;
+                    if (creditLink) { creditLink.href = slide.creditUrl; creditLink.textContent = slide.label; }
+                    if (attrSpan) attrSpan.textContent = slide.credit || '';
+                    if (dots) dots.innerHTML = slides.map((_, i) => i === idx ? '●' : '○').join(' ');
+                };
+
+                el.querySelector('.popup-slide-prev').addEventListener('click', (e) => { e.stopPropagation(); goTo(idx - 1); });
+                el.querySelector('.popup-slide-next').addEventListener('click', (e) => { e.stopPropagation(); goTo(idx + 1); });
+            }
         }
 
         map.on('click', 'animals-labels', (e) => {
