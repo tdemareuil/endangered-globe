@@ -34,7 +34,8 @@ IUCN_TOKEN = ""
 WIKIMEDIA_TOKEN = ""  # Optional — raises rate limit from 500 to 5,000 req/hour
 USER_AGENT = "EndangeredGlobe/1.0"
 TARGET_CATEGORIES = ["EW", "CR", "EN", "VU", "NT", "CD"]
-SLEEP_WIKI = 0.15
+SLEEP_WIKI = 0.15       # Wikimedia action/REST API (token-authenticated, ~6.6 req/s)
+SLEEP_PAGEVIEWS = 1.0  # AQS pageviews endpoint (IP-based limit, token not honoured)
 SLEEP_IUCN = 0.5
 SPATIAL_DATA_DIR = "data/shapefiles"
 PREFILTERED_SPATIAL_DIR = "data/processed/spatial_prefiltered"
@@ -51,6 +52,7 @@ IUCN_BASE = "https://api.iucnredlist.org/api/v4"
 IUCN_CACHE_DIR = "data/cache/iucn"
 WIKIDATA_ENDPOINT = "https://query.wikidata.org/sparql"
 PAGEVIEWS_BASE = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article"
+PAGEVIEWS_AGENT = "user"  # "user" = human only, "all-agents" = humans + bots
 WIKIPEDIA_SUMMARY_URL = "https://{project}/api/rest_v1/page/summary/{title}"
 COMMONS_API_URL = "https://commons.wikimedia.org/w/api.php"
 START = ""
@@ -229,7 +231,18 @@ def iucn_get(path, params=None, retries=4):
 
     headers = {"Authorization": require_iucn_token(), "User-Agent": USER_AGENT}
     for attempt in range(retries):
-        r = requests.get(f"{IUCN_BASE}{path}", params=params, headers=headers, timeout=45)
+        try:
+            r = requests.get(f"{IUCN_BASE}{path}", params=params, headers=headers, timeout=45)
+        except requests.exceptions.SSLError as e:
+            wait = 2 ** attempt * 5
+            tqdm.write(f"  [IUCN] SSL error — waiting {wait}s before retry ({e})")
+            time.sleep(wait)
+            continue
+        except requests.exceptions.ConnectionError as e:
+            wait = 2 ** attempt * 5
+            tqdm.write(f"  [IUCN] connection error — waiting {wait}s before retry ({e})")
+            time.sleep(wait)
+            continue
         if r.status_code == 401:
             raise RuntimeError("IUCN rejected the API token. Check IUCN_TOKEN.")
         if r.status_code == 429:
@@ -261,7 +274,18 @@ def iucn_get_optional(path, params=None, allowed_statuses=(404,), retries=4):
 
     headers = {"Authorization": require_iucn_token(), "User-Agent": USER_AGENT}
     for attempt in range(retries):
-        r = requests.get(f"{IUCN_BASE}{path}", params=params, headers=headers, timeout=45)
+        try:
+            r = requests.get(f"{IUCN_BASE}{path}", params=params, headers=headers, timeout=45)
+        except requests.exceptions.SSLError as e:
+            wait = 2 ** attempt * 5
+            tqdm.write(f"  [IUCN] SSL error — waiting {wait}s before retry ({e})")
+            time.sleep(wait)
+            continue
+        except requests.exceptions.ConnectionError as e:
+            wait = 2 ** attempt * 5
+            tqdm.write(f"  [IUCN] connection error — waiting {wait}s before retry ({e})")
+            time.sleep(wait)
+            continue
         if r.status_code in allowed_statuses:
             time.sleep(SLEEP_IUCN)
             return None
@@ -1315,10 +1339,10 @@ def query_wikidata_batch(iucn_ids, batch_size=500):
     for i in tqdm(range(0, len(ids), batch_size), desc="Wikidata batches"):
         batch = ids[i : i + batch_size]
         sparql = build_sparql_query(batch)
-        r = requests.get(
+        r = requests.post(
             WIKIDATA_ENDPOINT,
-            params={"query": sparql, "format": "json"},
-            headers=wikimedia_headers(),
+            data={"query": sparql},
+            headers={**wikimedia_headers(), "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/sparql-results+json"},
             timeout=60,
         )
         r.raise_for_status()
@@ -1475,7 +1499,9 @@ def wikidata_entity_search(search_term, retries=3):
                 timeout=15,
             )
             if r.status_code == 429:
-                time.sleep(wikimedia_retry_after(r, default=2**attempt * 3))
+                wait = wikimedia_retry_after(r, default=2**attempt * 3)
+                print(f"\n  [Pass 2 wbsearchentities] 429 — waiting {wait}s", flush=True)
+                time.sleep(wait)
                 continue
             r.raise_for_status()
             break
@@ -1492,14 +1518,16 @@ def wikidata_entity_search(search_term, retries=3):
 
     sparql = build_sparql_qid_query(qids)
     for attempt in range(retries):
-        r2 = requests.get(
+        r2 = requests.post(
             WIKIDATA_ENDPOINT,
-            params={"query": sparql, "format": "json"},
-            headers=wikimedia_headers(),
+            data={"query": sparql},
+            headers={**wikimedia_headers(), "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/sparql-results+json"},
             timeout=30,
         )
         if r2.status_code == 429:
-            time.sleep(wikimedia_retry_after(r2, default=2**attempt * 3))
+            wait = wikimedia_retry_after(r2, default=2**attempt * 3)
+            print(f"\n  [Pass 2 SPARQL] 429 — waiting {wait}s", flush=True)
+            time.sleep(wait)
             continue
         r2.raise_for_status()
         break
@@ -1512,18 +1540,52 @@ def wikidata_entity_search(search_term, retries=3):
     return _wikidata_entry_from_sparql_row(best)
 
 
-def query_wikidata_by_names(unresolved_taxonids, df):
+def query_wikidata_by_names(unresolved_taxonids, df, cache_path=None):
     """Retry Wikidata lookup by scientific name for taxa not resolved by IUCN taxon ID.
 
     Pass 1 — P225 batch query with ssp./subsp. normalization for subspecies names.
     Pass 2 — wbsearchentities entity search for taxa still missing after Pass 1.
+
+    cache_path: optional JSON file; already-resolved taxa are skipped and results
+    are written incrementally so the run can be resumed after an interruption.
 
     Returns a {str(taxonid): entry} dict ready to merge into wikidata_map.
     """
     if not unresolved_taxonids:
         return {}
 
-    unresolved_set = {str(t) for t in unresolved_taxonids}
+    # ── Load cache ───────────────────────────────────────────────────────────────
+    mapping = {}        # taxonid → found entry
+    not_found_cached = set()  # taxonids confirmed not found in a previous run
+    if cache_path:
+        os.makedirs(os.path.dirname(cache_path) or ".", exist_ok=True)
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path) as _f:
+                    _raw = json.load(_f)
+                for _k, _v in _raw.items():
+                    if _v.get("not_found"):
+                        not_found_cached.add(_k)
+                    else:
+                        mapping[_k] = _v
+                print(f"  Wikidata name cache: {len(mapping)} found + {len(not_found_cached)} not-found entries loaded from {cache_path}")
+            except Exception as _e:
+                print(f"  Warning: could not read cache {cache_path}: {_e}")
+
+    def _save_cache():
+        if not cache_path:
+            return
+        try:
+            with open(cache_path, "w") as _f:
+                json.dump({**mapping, **{k: {"not_found": True} for k in not_found_cached}}, _f)
+        except Exception as _e:
+            print(f"  Warning: could not save cache: {_e}")
+
+    unresolved_set = {str(t) for t in unresolved_taxonids if str(t) not in mapping and str(t) not in not_found_cached}
+    if not unresolved_set:
+        print(f"  All taxa already in cache ({len(mapping)} found, {len(not_found_cached)} not-found) — nothing to fetch")
+        return mapping
+
     unresolved_rows = df[
         df["taxonid"].astype(str).isin(unresolved_set)
     ].drop_duplicates(subset="taxonid")
@@ -1544,98 +1606,111 @@ def query_wikidata_by_names(unresolved_taxonids, df):
         return {}
 
     all_variants = list(variant_to_taxonids.keys())
-    print(
-        f"Wikidata name fallback: {len(unresolved_set)} unresolved taxa → {len(all_variants)} P225 candidates"
-    )
+    print(f"Wikidata name fallback: {len(unresolved_set)} unique taxa unresolved")
 
     # ── Pass 1: P225 batch query ────────────────────────────────────────────────
-    mapping = {}
+    _mapping_before_p1 = len(mapping)
     batch_size = 100
     for i in range(0, len(all_variants), batch_size):
         batch = all_variants[i : i + batch_size]
-        try:
-            sparql = build_sparql_name_query(batch)
-            r = requests.get(
-                WIKIDATA_ENDPOINT,
-                params={"query": sparql, "format": "json"},
-                headers=wikimedia_headers(),
-                timeout=30,
-            )
-            r.raise_for_status()
+        sparql = build_sparql_name_query(batch)
+        batch_num = i // batch_size + 1
+        for attempt in range(5):
+            try:
+                r = requests.post(
+                    WIKIDATA_ENDPOINT,
+                    data={"query": sparql},
+                    headers={**wikimedia_headers(), "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/sparql-results+json"},
+                    timeout=30,
+                )
+            except Exception as e:
+                print(f"  P225 batch {batch_num} attempt {attempt+1} error: {e}")
+                time.sleep(2 ** attempt * 2)
+                continue
+            if r.status_code == 429:
+                wait = wikimedia_retry_after(r, default=2 ** attempt * 10)
+                print(f"  [P225 SPARQL] 429 — waiting {wait}s (batch {batch_num}, attempt {attempt+1}/5)")
+                time.sleep(wait)
+                continue
+            try:
+                r.raise_for_status()
+            except Exception as e:
+                print(f"  P225 batch {batch_num} failed: {e}")
+                break
             for row in r.json()["results"]["bindings"]:
                 matched_variant = row["sci_name_match"]["value"]
                 entry = _wikidata_entry_from_sparql_row(row)
                 for iid in variant_to_taxonids.get(matched_variant, []):
                     _merge_entry(mapping, iid, entry)
-            time.sleep(1.0)
-        except Exception as e:
-            print(f"  P225 batch {i // batch_size + 1} failed: {e}")
+            _save_cache()
+            break
+        time.sleep(1.0)
 
-    # ── Pass 2: entity search for taxa still missing ────────────────────────────
-    resolved_iids = set(mapping.keys())
-    still_missing_rows = unresolved_rows[~unresolved_rows["taxonid"].astype(str).isin(resolved_iids)]
-    http_retry_rows = []  # rows that failed due to HTTP errors, retried at the end
-    for i, (_, row) in enumerate(still_missing_rows.iterrows(), 1):
+    # ── Passes 2–4: per-taxon sequential fallback ────────────────────────────────
+    _p1_resolved = len(mapping) - _mapping_before_p1
+    print(f"  Pass 1 (P225): resolved {_p1_resolved} / {len(unresolved_set)} — {len(unresolved_set) - _p1_resolved} remaining for per-taxon search")
+    # For each taxon not resolved by P225, try wbsearchentities → Wikipedia direct
+    # not-found once all three options are exhausted.
+    pending_rows = unresolved_rows[~unresolved_rows["taxonid"].astype(str).isin(mapping.keys())]
+    http_retry_rows = []
+
+    for i, (_, row) in enumerate(pending_rows.iterrows(), 1):
         sci_name = str(row.get("scientific_name", "")).strip()
         common_name = str(row.get("main_common_name", "")).strip()
         iid = str(row["taxonid"])
-        print(f"  [{i}/{len(still_missing_rows)}] {sci_name}", end=" ... ", flush=True)
+        print(f"  [{i}/{len(pending_rows)}] {sci_name}", end=" ...", flush=True)
+
         entry = None
         http_error = False
+
+        # Pass 2: wbsearchentities
         for search_term in filter(None, [sci_name, common_name]):
             try:
                 entry = wikidata_entity_search(search_term)
             except requests.exceptions.RequestException as e:
-                print(f"  HTTP error for {search_term!r}: {e}")
+                print(f" [wbsearch HTTP error: {e}]", end="", flush=True)
                 http_error = True
             except Exception as e:
-                print(f"  Entity search failed for {search_term!r}: {e}")
+                print(f" [wbsearch error: {e}]", end="", flush=True)
             finally:
-                time.sleep(2.0)
+                time.sleep(3.0)
             if entry:
                 break
-        if http_error and not entry:
+
+        # Pass 3: Wikipedia direct title lookup
+        if not entry:
+            for search_term in filter(None, [sci_name, common_name]):
+                try:
+                    entry = wikipedia_direct_search(search_term)
+                except requests.exceptions.RequestException as e:
+                    print(f" [wiki HTTP error: {e}]", end="", flush=True)
+                    http_error = True
+                except Exception as e:
+                    print(f" [wiki error: {e}]", end="", flush=True)
+                finally:
+                    time.sleep(SLEEP_WIKI * 10)
+                if entry:
+                    break
+
+        # Pass 4: Wikispecies
+        if not entry and sci_name:
+            entry = search_wikispecies(sci_name)
+            time.sleep(SLEEP_WIKI * 10)
+
+        # Outcome
+        if entry:
+            print(" found", flush=True)
+            _merge_entry(mapping, iid, entry)
+            _save_cache()
+        elif http_error:
+            print(" http error — will retry", flush=True)
             http_retry_rows.append(row)
-            print("http error — will retry")
         else:
-            print("found" if entry else "not found")
-        if entry:
-            _merge_entry(mapping, iid, entry)
+            print(" not found", flush=True)
+            not_found_cached.add(iid)
+            _save_cache()
 
-    # ── Pass 3: direct Wikipedia title lookup for taxa still missing ─────────────
-    resolved_iids = set(mapping.keys())
-    still_missing_rows_3 = unresolved_rows[~unresolved_rows["taxonid"].astype(str).isin(resolved_iids)]
-    if not still_missing_rows_3.empty:
-        print(f"Wikipedia direct search: {len(still_missing_rows_3)} taxa still unresolved")
-    for i, (_, row) in enumerate(still_missing_rows_3.iterrows(), 1):
-        sci_name = str(row.get("scientific_name", "")).strip()
-        common_name = str(row.get("main_common_name", "")).strip()
-        iid = str(row["taxonid"])
-        print(f"  [{i}/{len(still_missing_rows_3)}] {sci_name}", end=" ... ", flush=True)
-        entry = None
-        http_error = False
-        for search_term in filter(None, [sci_name, common_name]):
-            try:
-                entry = wikipedia_direct_search(search_term)
-            except requests.exceptions.RequestException as e:
-                print(f"  HTTP error for {search_term!r}: {e}")
-                http_error = True
-            except Exception as e:
-                print(f"  Wikipedia search failed for {search_term!r}: {e}")
-            finally:
-                time.sleep(SLEEP_WIKI)
-            if entry:
-                break
-        if http_error and not entry:
-            if not any(str(r.get("taxonid")) == iid for r in http_retry_rows):
-                http_retry_rows.append(row)
-            print("http error — will retry")
-        else:
-            print("found" if entry else "not found")
-        if entry:
-            _merge_entry(mapping, iid, entry)
-
-    # ── HTTP retry: re-run failed rows at the end ────────────────────────────────
+    # ── HTTP retry: one final attempt for taxa that HTTP-errored above ────────────
     if http_retry_rows:
         print(f"HTTP retry: {len(http_retry_rows)} taxa")
         time.sleep(5.0)
@@ -1645,7 +1720,7 @@ def query_wikidata_by_names(unresolved_taxonids, df):
             iid = str(row["taxonid"])
             if iid in mapping:
                 continue
-            print(f"  retry {sci_name}", end=" ... ", flush=True)
+            print(f"  retry {sci_name}", end=" ...", flush=True)
             entry = None
             for search_term in filter(None, [sci_name, common_name]):
                 for fn in [wikidata_entity_search, wikipedia_direct_search]:
@@ -1654,14 +1729,24 @@ def query_wikidata_by_names(unresolved_taxonids, df):
                     except Exception:
                         pass
                     finally:
-                        time.sleep(2.0)
+                        time.sleep(3.0)
                     if entry:
                         break
                 if entry:
                     break
-            print("found" if entry else "not found")
+            if not entry and sci_name:
+                try:
+                    entry = search_wikispecies(sci_name)
+                except Exception:
+                    pass
+                finally:
+                    time.sleep(SLEEP_WIKI * 10)
+            print(" found" if entry else " not found", flush=True)
             if entry:
                 _merge_entry(mapping, iid, entry)
+            else:
+                not_found_cached.add(iid)
+            _save_cache()
 
     # ── Summary ─────────────────────────────────────────────────────────────────
     if mapping:
@@ -1686,7 +1771,51 @@ def query_wikidata_by_names(unresolved_taxonids, df):
     )
     if still_missing_names:
         print(f"  Still missing after all fallbacks (Wikidata P225, entity search, Wikipedia direct): {still_missing_names}")
-    return mapping
+    return mapping  # found entries only; not_found_cached is persisted in the cache file
+
+
+def search_wikispecies(scientific_name, retries=3):
+    """Check if a Wikispecies article exists for a scientific name.
+
+    Returns a wikidata_map-compatible entry dict or None.
+    """
+    title = scientific_name.strip()
+    for attempt in range(retries):
+        try:
+            r = requests.get(
+                "https://species.wikimedia.org/w/api.php",
+                params={"action": "query", "titles": title, "redirects": 1, "format": "json"},
+                headers=wikimedia_headers(),
+                timeout=15,
+            )
+            if r.status_code == 429:
+                wait = wikimedia_retry_after(r, default=2 ** attempt * 3)
+                print(f"\n  [Pass 4 Wikispecies] 429 — waiting {wait}s", flush=True)
+                time.sleep(wait)
+                continue
+            r.raise_for_status()
+            break
+        except requests.exceptions.Timeout:
+            if attempt == retries - 1:
+                return None
+            time.sleep(2 ** attempt * 2)
+    else:
+        return None
+
+    pages = r.json().get("query", {}).get("pages", {})
+    for page in pages.values():
+        if page.get("pageid") and page.get("pageid") != -1:
+            resolved_title = page.get("title", title)
+            encoded = urllib.parse.quote(resolved_title.replace(" ", "_"), safe="")
+            return {
+                "wiki_title": resolved_title,
+                "wiki_project": "species.wikimedia.org",
+                "wiki_language": "en",
+                "wiki_url": f"https://species.wikimedia.org/wiki/{encoded}",
+                "wikidata_url": None,
+                "wikidata_image_url": None,
+            }
+    return None
 
 
 def search_inaturalist_image(scientific_name, retries=3):
@@ -1704,15 +1833,22 @@ def search_inaturalist_image(scientific_name, retries=3):
                 timeout=15,
             )
             if r.status_code == 429:
-                time.sleep(2 ** attempt * 3)
+                wait = 2 ** attempt * 3
+                tqdm.write(f"  [iNaturalist] 429 for {scientific_name!r} — waiting {wait}s")
+                time.sleep(wait)
                 continue
             r.raise_for_status()
             break
         except requests.exceptions.Timeout:
+            tqdm.write(f"  [iNaturalist] timeout for {scientific_name!r} (attempt {attempt + 1}/{retries})")
             if attempt == retries - 1:
                 return None, None, None, None
             time.sleep(2 ** attempt * 2)
+        except Exception as e:
+            tqdm.write(f"  [iNaturalist] error for {scientific_name!r}: {e}")
+            return None, None, None, None
     else:
+        tqdm.write(f"  [iNaturalist] gave up after {retries} retries for {scientific_name!r}")
         return None, None, None, None
 
     results = r.json().get("results", [])
@@ -1738,81 +1874,6 @@ def search_inaturalist_image(scientific_name, retries=3):
     return image_url, attribution, license_code, inat_url
 
 
-def search_eol_image(scientific_name, retries=3):
-    """Search Encyclopedia of Life for a species photo.
-
-    Returns (image_url, attribution, license_code, eol_url) or (None, None, None, None).
-    """
-    # Step 1: search for the species page ID
-    for attempt in range(retries):
-        try:
-            r = requests.get(
-                "https://eol.org/api/search/1.0.json",
-                params={"q": scientific_name, "page": 1, "exact": "false"},
-                headers={"User-Agent": USER_AGENT},
-                timeout=15,
-            )
-            if r.status_code == 429:
-                time.sleep(2 ** attempt * 3)
-                continue
-            r.raise_for_status()
-            break
-        except requests.exceptions.Timeout:
-            if attempt == retries - 1:
-                return None, None, None, None
-            time.sleep(2 ** attempt * 2)
-    else:
-        return None, None, None, None
-
-    results = r.json().get("results", [])
-    if not results:
-        return None, None, None, None
-
-    page_id = results[0].get("id")
-    if not page_id:
-        return None, None, None, None
-
-    eol_url = f"https://eol.org/pages/{page_id}"
-
-    # Step 2: fetch page details with images
-    for attempt in range(retries):
-        try:
-            r2 = requests.get(
-                f"https://eol.org/api/pages/1.0/{page_id}.json",
-                params={"images": 1, "details": "true", "common_names": "false", "synonyms": "false"},
-                headers={"User-Agent": USER_AGENT},
-                timeout=15,
-            )
-            if r2.status_code == 429:
-                time.sleep(2 ** attempt * 3)
-                continue
-            r2.raise_for_status()
-            break
-        except requests.exceptions.Timeout:
-            if attempt == retries - 1:
-                return None, None, None, None
-            time.sleep(2 ** attempt * 2)
-    else:
-        return None, None, None, None
-
-    data_objects = r2.json().get("dataObjects", [])
-    images = [
-        obj for obj in data_objects
-        if "StillImage" in obj.get("dataType", "") and obj.get("eolMediaURL") or obj.get("mediaURL")
-    ]
-    if not images:
-        return None, None, None, None
-
-    img = images[0]
-    image_url = img.get("eolMediaURL") or img.get("mediaURL")
-    rights_holder = img.get("rightsHolder") or ""
-    license_url = img.get("license") or ""
-    license_code = license_url.rstrip("/").split("/")[-2] if "creativecommons.org" in license_url else "all rights reserved"
-    attribution = f"© {rights_holder}" if rights_holder else ""
-
-    return image_url, attribution, license_code, eol_url
-
-
 def wikipedia_direct_search(search_term, lang="en", retries=3):
     """Check if a Wikipedia page exists for search_term (resolving redirects). Returns an entry dict or None."""
     for attempt in range(retries):
@@ -1824,7 +1885,9 @@ def wikipedia_direct_search(search_term, lang="en", retries=3):
                 timeout=15,
             )
             if r.status_code == 429:
-                time.sleep(2 ** attempt * 3)
+                wait = wikimedia_retry_after(r, default=2 ** attempt * 3)
+                print(f"\n  [Pass 3 Wikipedia direct] 429 — waiting {wait}s", flush=True)
+                time.sleep(wait)
                 continue
             r.raise_for_status()
             break
@@ -1875,33 +1938,20 @@ def log_dropped(dropped_log, ids_before, ids_after, stage, reason, ref_df=None):
     print(f"  [{stage}] {len(lost)} taxa dropped: {reason}")
 
 
-pageview_throttled = False  # set to True after first 429; caller should increase inter-call sleep
-pageview_gave_up = False   # set to True when a 429 give-up occurs; caller should stop the loop
-
-
-def get_pageviews(project, title, retries=3):
+def get_pageviews(project, title, retries=4):
     """Return total Wikipedia views over the last 12 months for one project/title, or 0 on error."""
-    global pageview_throttled
     encoded = urllib.parse.quote(title, safe="")
     project = project or "en.wikipedia.org"
-    url = f"{PAGEVIEWS_BASE}/{project}/all-access/all-agents/{encoded}/monthly/{START}/{END}"
+    url = f"{PAGEVIEWS_BASE}/{project}/all-access/{PAGEVIEWS_AGENT}/{encoded}/monthly/{START}/{END}"
     for attempt in range(retries):
         try:
             r = requests.get(url, headers=wikimedia_headers(), timeout=15)
             if r.status_code == 404:
                 return 0
             if r.status_code == 429:
-                if not pageview_throttled:
-                    pageview_throttled = True
-                    wait = wikimedia_retry_after(r, default=10)
-                    tqdm.write(f"  [pageviews] 429 — waiting {wait}s (throttle mode ON)")
-                    time.sleep(wait)
-                else:
-                    wait = wikimedia_retry_after(r, default=60)
-                    tqdm.write(f"  [pageviews] 429 again for {title!r} — waiting {wait}s then giving up")
-                    time.sleep(wait)
-                    pageview_gave_up = True
-                    return 0
+                wait = wikimedia_retry_after(r, default=30)
+                tqdm.write(f"  [pageviews] 429 for {title!r} — waiting {wait}s then retrying")
+                time.sleep(wait)
                 continue
             if not r.ok:
                 tqdm.write(f"  [pageviews] HTTP {r.status_code} for {title!r}")
@@ -1962,6 +2012,29 @@ def commons_search_terms(scientific_name, common_name):
     return terms
 
 
+def wikimedia_filename(url):
+    """Extract and normalise the canonical filename from any Wikimedia image URL.
+
+    Strips path prefixes, thumbnail size suffixes, URL encoding, copy-number
+    suffixes (e.g. ' (1)'), and lowercases for comparison.
+    """
+    if not url:
+        return ""
+    decoded = urllib.parse.unquote(str(url)).replace("_", " ").lower()
+    decoded = re.sub(r"/\d+px-", "/", decoded)
+    filename = decoded.rstrip("/").split("/")[-1]
+    filename = re.sub(r"^special:filepath/", "", filename)
+    filename = re.sub(r" \(\d+\)(\.[^.]+)$", r"\1", filename)
+    # Strip common editing suffixes before the extension (edit, crop, cropped, edited, etc.)
+    _edit_pattern = re.compile(r"[ _-](?:edit(?:ed)?|crop(?:ped)?)(\.[^.]+)$")
+    while True:
+        new = _edit_pattern.sub(r"\1", filename)
+        if new == filename:
+            break
+        filename = new
+    return filename.strip()
+
+
 def wikimedia_tiff_to_thumbnail(url, width=800):
     """Convert a Wikimedia Commons TIFF URL to its JPEG thumbnail equivalent.
 
@@ -2004,10 +2077,13 @@ def is_probable_range_map_title(value, scientific_name=None, common_name=None):
     — e.g. 'Varzea Piculet' contains 'area', 'Range frog' contains 'range'.
     """
     normalized = urllib.parse.unquote(str(value or "")).lower().replace("_", " ")
-    sci = (scientific_name or "").lower()
-    common = (common_name or "").lower()
-    for token in ["distrib", "range", "extent", "area", "zon", "map"]:
+    sci = str(scientific_name).lower() if scientific_name and not isinstance(scientific_name, float) else ""
+    common = str(common_name).lower() if common_name and not isinstance(common_name, float) else ""
+    for token in ["distrib", "extent", "area", "map"]:
         if token in normalized and token not in sci and token not in common:
+            return True
+    for pattern in [r'\brange', r'\bzon']:
+        if re.search(pattern, normalized) and not re.search(pattern, sci) and not re.search(pattern, common):
             return True
     return False
 

@@ -365,8 +365,13 @@
             background: rgba(0, 0, 0, 0.72);
         }
 
-        .popup-slide-prev { left: 5px; }
-        .popup-slide-next { right: 5px; }
+        .popup-slide-prev {
+            left: 5px;
+        }
+
+        .popup-slide-next {
+            right: 5px;
+        }
 
         .popup-slide-dots {
             text-align: center;
@@ -560,13 +565,17 @@
                                 chosen from a prioritized combination of presence (Extant, Probably Extant, Possibly
                                 Extant) and seasonality (Resident, Breeding, Non-breeding, Passage). Centroids are then
                                 computed to get one point per species.
-                                <span id="centroid-sentence-primary">Species with disconnected ranges get displayed on their largest distribution area.</span>
-                                <span id="centroid-sentence-multi">Species with disconnected ranges can receive several label points (max 2), but secondary clusters are kept only when they represent enough of the total mapped range (min 20%).</span>
+                                <span id="centroid-sentence-primary">Species with disconnected ranges get displayed on
+                                    their largest distribution area.</span>
+                                <span id="centroid-sentence-multi">Species with disconnected ranges can receive several
+                                    label points (max 2), but secondary clusters are kept only when they represent
+                                    enough of the total mapped range (min 20%).</span>
                             </p>
                             <p>Name size and weight come from Wikipedia pageviews over the last completed year
                                 (Jun&nbsp;25 – May&nbsp;26). More-viewed animals appear earlier; zooming in reveals
-                                less-viewed species. Photos come from Wikidata first, then Wikipedia and Wikimedia
-                                Commons fallbacks, and finally iNaturalist when available.</p>
+                                less-viewed species. Animals without a resolved Wikipedia article or with 0 views in a
+                                year get 1 view so that they appear in the smallest size. Photos come from Wikidata
+                                or Wikipedia first, then Wikimedia Commons and iNaturalist fallbacks.</p>
                             <figure class="coverage-figure">
                                 <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Red_List_by_group_260327.png"
                                     alt="IUCN Red List species count by group and category" />
@@ -817,9 +826,9 @@
         const map = new maplibregl.Map({
             container: 'map',
             style: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
-            zoom: 2.3,
-            minZoom: 1.35,
-            center: [10, 20],
+            zoom: 2.45,
+            minZoom: 1.6,
+            center: [115, 5],
             pitch: 0
         });
 
@@ -1132,7 +1141,7 @@
                 type: 'circle',
                 source: 'animals',
                 paint: {
-                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 1.6, 5, 2.5, 10, 3.75],
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 1.1, 5, 2.2, 10, 6.0, 15, 12.0, 20, 20.0],
                     'circle-color': ['match', ['get', 'category_iucn'],
                         'EW', '#CC77FF',
                         'CR', '#8F102A',
@@ -1166,7 +1175,7 @@
                         8, ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 7, 14.0, 17],
                         14, ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 8, 14.0, 22]
                     ],
-                    'text-offset': [0, 0.8]
+                    'text-offset': ['interpolate', ['linear'], ['zoom'], 2, ['literal', [0, 0.6]], 10, ['literal', [0, 1.6]]]
                 },
                 paint: {
                     'text-color': '#ffffff',
@@ -1202,7 +1211,7 @@
                 taxonid, label, category_iucn, taxon_class, taxon_group, popularity,
                 wiki_title, wiki_project, wiki_url, image_url, image_source,
                 wikidata_url, wikidata_image_url, wikipedia_thumbnail_url, commons_image_url, commons_image_page_url, commons_image_credit,
-                iucn_assessment_url,
+                iucn_assessment_url, year_published,
                 population_trend, number_of_mature_individuals
             } = feature.properties || {};
             const coords = feature.geometry && feature.geometry.coordinates;
@@ -1215,7 +1224,6 @@
             const wikidataHref = safeExternalUrl(wikidata_url) || wikidataUrlFromTaxonId(taxonid);
             const iucnHref = safeExternalUrl(iucn_assessment_url);
             const isInat = image_source === 'iNaturalist';
-            const isEol = image_source === 'EOL';
 
             // Build slides: primary image + optional Wikidata secondary
             const slides = [];
@@ -1224,12 +1232,12 @@
                 const primaryCreditUrl = safeExternalUrl(commons_image_page_url) || safeImageUrl
                     || safeExternalUrl(commons_image_url) || safeExternalUrl(wikipedia_thumbnail_url)
                     || safeExternalUrl(wikidata_image_url);
-                const primaryLabel = isInat ? 'iNaturalist ©' : isEol ? 'EOL ©' : 'Image';
-                slides.push({ url: safeImageUrl, creditUrl: primaryCreditUrl, label: primaryLabel, credit: (isInat || isEol) ? commons_image_credit : null });
+                const primaryLabel = isInat ? 'iNaturalist ©' : 'Image';
+                slides.push({ url: safeImageUrl, creditUrl: primaryCreditUrl, label: primaryLabel, credit: isInat ? commons_image_credit : null });
             }
             const safeWikidataUrl = safeExternalUrl(wikidata_image_url);
             if (safeWikidataUrl && safeWikidataUrl !== safeImageUrl) {
-                slides.push({ url: safeWikidataUrl, creditUrl: safeExternalUrl(wikidata_url) || safeWikidataUrl, label: 'Wikidata', credit: null });
+                slides.push({ url: safeWikidataUrl, creditUrl: safeWikidataUrl, label: 'Image', credit: null });
             }
 
             const hasSlides = slides.length > 0;
@@ -1267,7 +1275,7 @@
                 <b style="font-size:14px">
                     <a href="${escapeHtml(wikiHref)}" target="_blank" rel="noopener noreferrer" style="color:${color}; text-decoration:underline">${escapeHtml(speciesLabel)}</a>
                 </b><br>
-                <span style="color:${color}; font-weight:bold">&#9679; ${escapeHtml(category_iucn)}</span> — ${escapeHtml(categoryLabel[category_iucn] || 'Unknown category')}<br>
+                <span style="color:${color}; font-weight:bold">&#9679; ${escapeHtml(category_iucn)}</span> — ${escapeHtml(categoryLabel[category_iucn] || 'Unknown category')}${year_published ? ` <span style="color:rgba(255,255,255,0.5)">(${escapeHtml(String(year_published))})</span>` : ''}<br>
                 <span style="color:rgba(255,255,255,0.78)">${escapeHtml(taxon_group || 'Unknown animal group')}${taxon_class ? ` (${escapeHtml(taxon_class)})` : ''}</span><br>
                 ${populationTrendHtml}
                 ${matureIndividualsHtml}

@@ -160,10 +160,20 @@ What we take: the translation dictionary and primary image. We query Wikidata wi
 
 Wikipedia language priority is: English, German, French, Japanese, Russian, Spanish, Italian, Chinese, Polish, Portuguese, then the first remaining Wikipedia sitelink returned by Wikidata.
 
+**Wikipedia article resolution fallback chain** — for taxa not resolved by the initial IUCN ID → Wikidata batch query:
+
+1. **Wikidata SPARQL — P225 batch** (scientific name property): batches up to 100 name variants at a time, with subspecies normalisation (`ssp.` / `subsp.` variants).
+2. **Wikidata entity search** (`wbsearchentities`): searched by scientific name then common name for each still-unresolved taxon.
+3. **Wikipedia direct title lookup**: tries the scientific name then the common name as a Wikipedia article title, resolving redirects.
+4. **Wikispecies lookup**: checks `species.wikimedia.org` for an article matching the scientific name. Useful for taxa assessed at subspecies level that have a Wikispecies page but no Wikipedia article.
+5. **HTTP retry**: rows that failed due to network errors in passes 2–4 are retried at the end of the chain.
+
 For infrarank taxa without a resolved Wikipedia article, the notebook makes one extra batched Wikidata lookup for the needed parent species IDs. If a parent article exists, the infrarank keeps its own IUCN identity and conservation status but inherits the parent species article, image lookup, and pageviews signal. If an infrarank has an article but still has zero pageviews or no usable image, parent species lookups are attempted only for those missing fields. Parent lookup IDs are queried only when absent from the local Wikidata cache, so parents already resolved earlier are reused. Rows using parent article/pageviews are marked with `wiki_lookup_source = parent_species`; rows using only a parent image are marked with `image_lookup_source = parent_species`.
 
 ### Channel 4 — Wikipedia Pageviews (public REST API)
-What we take: the cultural popularity score. Given the article title from Wikidata, the API returns the total view count over the past 12 months.
+What we take: the cultural popularity score. Given the article title from Wikidata, the API returns the total view count over the past 12 months. The query uses `user` (human traffic only), excluding bots and automated crawlers.
+
+Species with no resolved Wikipedia article after all fallback steps, and species whose article received zero pageviews in the past year, are both assigned a popularity of **1**. This ensures they still appear on the globe (the label sort key is `−popularity`, so a zero would suppress them) while ranking below any article with real traffic.
 
 When Wikidata has no `P18` image, the notebook queries the selected Wikipedia article's page summary and uses its thumbnail as a fallback popup image. If both are missing, it can search Wikimedia Commons by scientific/common name and keep attribution metadata when available.
 
@@ -194,21 +204,23 @@ The notebook is intentionally kept as an orchestration layer. Reusable helper fu
 ### Step 2 — Popularity harvesting
 
 For each valid species:
-1. Query Wikidata (SPARQL) to retrieve the preferred Wikipedia sitelink and `P18` image.
-2. Query the matching Wikimedia Pageviews project to get the 12-month view count.
-3. Query the selected Wikipedia page summary only when a Wikidata image is missing, and use its thumbnail as fallback.
-4. If both are missing, search Wikimedia Commons by scientific name first, then main common name, and keep the first usable bitmap image with available attribution metadata. Skip candidate image titles or URLs containing `distrib`, `range`, or `extent`, since those are likely maps rather than animal photos.
-5. Store the final `image_url`, `image_source`, image lookup traceability fields, image attribution fields, and popularity score.
+1. Resolve a Wikipedia article via the fallback chain described in Channel 3 above.
+2. Query the matching Wikimedia Pageviews project (Wikipedia or Wikispecies) to get the 12-month view count.
+3. Query the Wikipedia page thumbnail for all taxa; prefer it over Wikidata P18 when both exist.
+4. If no image yet, fall back in order to: Wikidata P18 → Wikimedia Commons search by scientific name then common name → iNaturalist.
+5. Skip candidate image titles or URLs containing `distrib`, `range`, or `extent` unless those terms also appear in the species name itself, since they likely indicate range maps rather than photos.
+6. Store the final `image_url`, `image_source`, image lookup traceability fields, image attribution fields, and popularity score.
 
-Be polite to the Wikipedia API: set a proper `User-Agent` header (include your email) and add `time.sleep(0.1)` between requests.
+Individual API responses are cached on disk in `data/cache/iucn/` (IUCN) and the Wikimedia token raises the rate limit to 5,000 req/hour.
 
 The notebook fetches each external image/pageviews resource once per unique article or taxon, then fills duplicate label-point rows created by multi-centroid species.
 
 Current image priority:
 
-- `Wikidata P18`
-- selected Wikipedia page thumbnail
-- Wikimedia Commons search by exact scientific name, then exact main common name
+1. Selected Wikipedia page thumbnail
+2. Wikidata `P18`
+3. Wikimedia Commons search by exact scientific name, then exact main common name
+4. iNaturalist (includes all-rights-reserved photos, with attribution)
 
 Future improvement ideas:
 
