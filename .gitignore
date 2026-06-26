@@ -3,6 +3,11 @@
 /data/processed/
 /data/cache/*
 !/data/cache/checkpoints/
+!/data/cache/pageviews/
+!/data/cache/thumbnails/
+!/data/cache/commons/
+!/data/cache/inaturalist/
+!/data/cache/wikidata/
 /data/secrets/
 animals-spatial.geojson
 __pycache__/
