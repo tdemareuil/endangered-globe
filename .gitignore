@@ -1,7 +1,8 @@
 *.DS_Store
 /data/shapefiles/
 /data/processed/
-/data/cache/
+/data/cache/*
+!/data/cache/checkpoints/
 /data/secrets/
 animals-spatial.geojson
 __pycache__/
