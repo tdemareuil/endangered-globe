@@ -59,7 +59,8 @@ START = ""
 END = ""
 
 OTHER_TAXON_GROUP = "Other (Reptiles, Amphib., Crust.)"
-FISH_TAXON_GROUP = "Fish (sharks, freshwater)"
+FISH_TAXON_GROUP = "Fishes (not comprehensive)"
+MOLLUSCS_TAXON_GROUP = "Crustaceans, Molluscs (not comprehensive)"
 
 SPATIAL_PACKAGE_CONFIG = {
     "MAMMALS": {"patterns": ["MAMMALS/*.shp"], "taxon_group": "Mammals"},
@@ -77,26 +78,46 @@ SPATIAL_PACKAGE_CONFIG = {
         "patterns": ["SHARKS_RAYS_CHIMAERAS/*.shp"],
         "taxon_group": FISH_TAXON_GROUP,
     },
+    # Marine fish — subfolders under MARINE FISH/
+    "CROAKERS_DRUMS":           {"patterns": ["MARINE FISH/CROAKERS_DRUMS/*.shp"],           "taxon_group": FISH_TAXON_GROUP},
+    "EELS":                     {"patterns": ["MARINE FISH/EELS/*.shp"],                     "taxon_group": FISH_TAXON_GROUP},
+    "GROUPERS":                 {"patterns": ["MARINE FISH/GROUPERS/*.shp"],                 "taxon_group": FISH_TAXON_GROUP},
+    "HAGFISH":                  {"patterns": ["MARINE FISH/HAGFISH/*.shp"],                  "taxon_group": FISH_TAXON_GROUP},
+    "SALMONIDS":                {"patterns": ["MARINE FISH/SALMONIDS/*.shp"],                "taxon_group": FISH_TAXON_GROUP},
+    "SEABREAMS_SNAPPERS_GRUNTS":{"patterns": ["MARINE FISH/SEABREAMS_SNAPPERS_GRUNTS/*.shp"],"taxon_group": FISH_TAXON_GROUP},
+    "STURGEONS_PADDLEFISHES":   {"patterns": ["MARINE FISH/STURGEONS_PADDLEFISHES/*.shp"],   "taxon_group": FISH_TAXON_GROUP},
+    "SYNGNATHIFORM_FISHES":     {"patterns": ["MARINE FISH/SYNGNATHIFORM_FISHES/*.shp"],     "taxon_group": FISH_TAXON_GROUP},
+    "TUNAS_BILLFISHES_SWORDFISH":{"patterns": ["MARINE FISH/TUNAS_BILLFISHES_SWORDFISH/*.shp"],"taxon_group": FISH_TAXON_GROUP},
+    "WRASSES_PARROTFISHES":     {"patterns": ["MARINE FISH/WRASSES_PARROTFISHES/*.shp"],     "taxon_group": FISH_TAXON_GROUP},
+    # Molluscs — subfolders under MOLLUSCS/
+    "ABALONES":          {"patterns": ["MOLLUSCS/ABALONES/*.shp"],    "taxon_group": MOLLUSCS_TAXON_GROUP},
+    "CONE_SNAILS":       {"patterns": ["MOLLUSCS/CONE_SNAILS/*.shp"], "taxon_group": MOLLUSCS_TAXON_GROUP},
+    "REEF_FORMING_CORALS":{"patterns": ["MOLLUSCS/REEF_FORMING_CORALS/*.shp"], "taxon_group": MOLLUSCS_TAXON_GROUP},
     # BirdLife BOTW GPKG — single layer "all_species", taxon ID column is "sisid", no category column
     "BIRDS": {"patterns": ["BIRDS/*.gpkg"], "taxon_group": "Birds"},
 }
 
+MARINE_FISH_PACKAGES = [
+    "CROAKERS_DRUMS", "EELS", "GROUPERS", "HAGFISH", "SALMONIDS",
+    "SEABREAMS_SNAPPERS_GRUNTS", "STURGEONS_PADDLEFISHES", "SYNGNATHIFORM_FISHES",
+    "TUNAS_BILLFISHES_SWORDFISH", "WRASSES_PARROTFISHES",
+]
+
+MOLLUSCS_PACKAGES = ["ABALONES", "CONE_SNAILS", "REEF_FORMING_CORALS"]
+
 RUN_MODE_SPATIAL_PACKAGES = {
-    "sample_mammals": ["MAMMALS"],
-    "sample_birds": ["BIRDS"],
-    "sample_fish": ["FW_FISH", "SHARKS_RAYS_CHIMAERAS"],
-    "sample_other": ["REPTILES", "AMPHIBIANS", "FW_CRABS", "FW_CRAYFISH", "FW_SHRIMPS", "LOBSTERS"],
-    "full_mammals": ["MAMMALS"],
-    "full_other": [
-        "REPTILES",
-        "AMPHIBIANS",
-        "FW_CRABS",
-        "FW_CRAYFISH",
-        "FW_SHRIMPS",
-        "LOBSTERS",
-    ],
-    "full_fish": ["FW_FISH", "SHARKS_RAYS_CHIMAERAS"],
-    "full_birds": ["BIRDS"],
+    "sample_mammals":     ["MAMMALS"],
+    "sample_birds":       ["BIRDS"],
+    "sample_fish":        ["FW_FISH", "SHARKS_RAYS_CHIMAERAS"],
+    "sample_other":       ["REPTILES", "AMPHIBIANS", "FW_CRABS", "FW_CRAYFISH", "FW_SHRIMPS", "LOBSTERS"],
+    "sample_marine_fish": MARINE_FISH_PACKAGES,
+    "sample_molluscs":    MOLLUSCS_PACKAGES,
+    "full_mammals":       ["MAMMALS"],
+    "full_other":         ["REPTILES", "AMPHIBIANS", "FW_CRABS", "FW_CRAYFISH", "FW_SHRIMPS", "LOBSTERS"],
+    "full_fish":          ["FW_FISH", "SHARKS_RAYS_CHIMAERAS"],
+    "full_birds":         ["BIRDS"],
+    "full_marine_fish":   MARINE_FISH_PACKAGES,
+    "full_molluscs":      MOLLUSCS_PACKAGES,
 }
 
 CATEGORY_LABEL_TO_CODE = {
@@ -193,6 +214,14 @@ def read_local_secret(path):
     """Read a local secret file ignored by git, returning an empty string if absent."""
     path = Path(path)
     return path.read_text().strip() if path.exists() else ""
+
+
+def clean_str(value):
+    """Return a stripped string, or '' for None/NaN/non-string values."""
+    if value is None:
+        return ""
+    s = str(value).strip()
+    return "" if s.lower() == "nan" else s
 
 
 def wikimedia_headers():
@@ -1594,7 +1623,7 @@ def query_wikidata_by_names(unresolved_taxonids, df, cache_path=None):
     variant_to_taxonids = {}
     canonical_name = {}  # variant → original IUCN name for reporting
     for _, row in unresolved_rows.iterrows():
-        name = str(row.get("scientific_name", "")).strip()
+        name = clean_str(row.get("scientific_name"))
         if not name:
             continue
         iid = str(row["taxonid"])
@@ -1655,8 +1684,8 @@ def query_wikidata_by_names(unresolved_taxonids, df, cache_path=None):
     http_retry_rows = []
 
     for i, (_, row) in enumerate(pending_rows.iterrows(), 1):
-        sci_name = str(row.get("scientific_name", "")).strip()
-        common_name = str(row.get("main_common_name", "")).strip()
+        sci_name = clean_str(row.get("scientific_name"))
+        common_name = clean_str(row.get("main_common_name"))
         iid = str(row["taxonid"])
         print(f"  [{i}/{len(pending_rows)}] {sci_name}", end=" ...", flush=True)
 
@@ -1715,8 +1744,8 @@ def query_wikidata_by_names(unresolved_taxonids, df, cache_path=None):
         print(f"HTTP retry: {len(http_retry_rows)} taxa")
         time.sleep(5.0)
         for row in http_retry_rows:
-            sci_name = str(row.get("scientific_name", "")).strip()
-            common_name = str(row.get("main_common_name", "")).strip()
+            sci_name = clean_str(row.get("scientific_name"))
+            common_name = clean_str(row.get("main_common_name"))
             iid = str(row["taxonid"])
             if iid in mapping:
                 continue
@@ -1834,7 +1863,7 @@ def search_inaturalist_image(scientific_name, retries=3):
             )
             if r.status_code == 429:
                 wait = 2 ** attempt * 3
-                tqdm.write(f"  [iNaturalist] 429 for {scientific_name!r} — waiting {wait}s")
+                tqdm.write(f"  [iNaturalist] 429 for {scientific_name!r} — waiting {wait}s (attempt {attempt+1}/{retries})")
                 time.sleep(wait)
                 continue
             r.raise_for_status()
@@ -1965,21 +1994,35 @@ def get_pageviews(project, title, retries=4):
     return 0
 
 
-def get_wikipedia_thumbnail(project, title):
-    """Return a Wikipedia thumbnail/original image URL for a page title, or None."""
-    encoded = urllib.parse.quote(title, safe="")
+def get_wikipedia_thumbnail(project, title, retries=4):
+    """Return a Wikipedia thumbnail/original image URL for a page title, or None.
+
+    Uses the per-language rest_v1 summary endpoint which reliably returns
+    originalimage and thumbnail fields. The Bearer token is not sent here as
+    this endpoint is on the per-language domain, not api.wikimedia.org.
+    """
     project = project or "en.wikipedia.org"
+    encoded = urllib.parse.quote(title, safe="")
     url = WIKIPEDIA_SUMMARY_URL.format(project=project, title=encoded)
-    try:
-        r = requests.get(url, headers=wikimedia_headers(), timeout=15)
-        if r.status_code == 404:
-            return None
-        r.raise_for_status()
-        data = r.json()
-        image = pick_path(data, ("originalimage", "source"), ("thumbnail", "source"))
-        return image.replace("http://", "https://", 1) if image else None
-    except Exception:
-        return None
+    for attempt in range(retries):
+        try:
+            r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=15)
+            if r.status_code == 404:
+                return None
+            if r.status_code == 429:
+                wait = wikimedia_retry_after(r, default=2 ** attempt * 5)
+                tqdm.write(f"  [thumbnail] 429 — waiting {wait}s for {url}")
+                time.sleep(wait)
+                continue
+            r.raise_for_status()
+            data = r.json()
+            image = pick_path(data, ("originalimage", "source"), ("thumbnail", "source"))
+            return image.replace("http://", "https://", 1) if image else None
+        except requests.exceptions.RequestException:
+            if attempt == retries - 1:
+                return None
+            time.sleep(2 ** attempt * 2)
+    return None
 
 
 def clean_commons_metadata(value):
@@ -2005,10 +2048,10 @@ def commons_metadata_value(extmetadata, key):
 def commons_search_terms(scientific_name, common_name):
     """Return cautious Commons search terms, preferring exact scientific-name matches."""
     terms = []
-    if scientific_name and str(scientific_name).strip():
-        terms.append(("scientific_name", f'"{str(scientific_name).strip()}"'))
-    if common_name and str(common_name).strip():
-        terms.append(("common_name", f'"{str(common_name).strip()}"'))
+    if scientific_name and isinstance(scientific_name, str) and scientific_name.strip():
+        terms.append(("scientific_name", f'"{scientific_name.strip()}"'))
+    if common_name and isinstance(common_name, str) and common_name.strip():
+        terms.append(("common_name", f'"{common_name.strip()}"'))
     return terms
 
 
@@ -2024,7 +2067,8 @@ def wikimedia_filename(url):
     decoded = re.sub(r"/\d+px-", "/", decoded)
     filename = decoded.rstrip("/").split("/")[-1]
     filename = re.sub(r"^special:filepath/", "", filename)
-    filename = re.sub(r" \(\d+\)(\.[^.]+)$", r"\1", filename)
+    filename = re.sub(r" \(\d+\)(\.[^.]+)$", r"\1", filename)  # strip " (2).jpg"
+    filename = re.sub(r" \d+(\.[^.]+)$", r"\1", filename)       # strip " 2.jpg"
     # Strip common editing suffixes before the extension (edit, crop, cropped, edited, etc.)
     _edit_pattern = re.compile(r"[ _-](?:edit(?:ed)?|crop(?:ped)?)(\.[^.]+)$")
     while True:
@@ -2118,6 +2162,7 @@ def search_commons_image(scientific_name, common_name):
             continue
         for page in pages:
             if is_probable_range_map_title(page.get("title")):
+                tqdm.write(f"  [Commons] excluded (map-like title): {page.get('title')!r} for {scientific_name!r}")
                 continue
             imageinfo = (page.get("imageinfo") or [{}])[0]
             mime = imageinfo.get("mime")
@@ -2125,6 +2170,7 @@ def search_commons_image(scientific_name, common_name):
                 continue
             image_url = imageinfo.get("thumburl") or imageinfo.get("url")
             if not image_url or is_probable_range_map_title(image_url):
+                tqdm.write(f"  [Commons] excluded (map-like URL): {image_url!r} for {scientific_name!r}")
                 continue
             extmetadata = imageinfo.get("extmetadata") or {}
             return {

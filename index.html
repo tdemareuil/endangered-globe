@@ -338,6 +338,25 @@
             background: rgba(255, 255, 255, 0.08);
         }
 
+        .popup-species-image.is-ultrawide {
+            object-fit: contain;
+            background: #000;
+            border-radius: 7px;
+        }
+
+        .popup-species-image.is-inat {
+            height: 150px;
+            object-fit: cover;
+        }
+
+        .popup-species-image.is-ultranarrow {
+            width: 100%;
+            height: clamp(180px, 42vh, 260px);
+            object-fit: contain;
+            background: #000;
+            border-radius: 7px;
+        }
+
         .popup-species-image.is-portrait {
             width: auto;
             max-width: 100%;
@@ -544,10 +563,11 @@
                             <label><input type="checkbox" name="animal-filter" value="Birds"><span
                                     class="dot dot-group"></span> Birds</label>
                             <label><input type="checkbox" name="animal-filter"
-                                    value="Other (Reptiles, Amphib., Crust.)"><span class="dot dot-group"></span> Other
-                                (Reptiles, Amphib., Crust.)</label>
-                            <label><input type="checkbox" name="animal-filter" value="Fish (sharks, freshwater)"><span
-                                    class="dot dot-group"></span> Fish (sharks, freshwater)</label>
+                                    value="Reptiles, Amphibians"><span class="dot dot-group"></span> Reptiles, Amphibians</label>
+                            <label><input type="checkbox" name="animal-filter" value="Fishes (not comprehensive)"><span
+                                    class="dot dot-group"></span> Fishes (not comprehensive)</label>
+                            <label><input type="checkbox" name="animal-filter"
+                                    value="Crustaceans, Molluscs (not comprehensive)"><span class="dot dot-group"></span> Crustaceans, Molluscs (not comprehensive)</label>
                         </div>
                         <button id="random-species-button" class="random-species-button" type="button">Zoom on a random
                             species</button>
@@ -985,11 +1005,17 @@
         }
 
         function normalizeAnimalGroups(featureCollection) {
+            const REMAP = {
+                'Other (Reptiles, Amphibians)': 'Reptiles, Amphibians',
+                'Other (Reptiles, Amphib., Crust.)': 'Reptiles, Amphibians',
+                'Fish (sharks, freshwater)': 'Fishes (not comprehensive)',
+                'Crustaceans': 'Crustaceans, Molluscs (not comprehensive)',
+                'Crustaceans (not comprehensive)': 'Crustaceans, Molluscs (not comprehensive)',
+                'Crustaceans, Molluscs (not comp.)': 'Crustaceans, Molluscs (not comprehensive)',
+            };
             (featureCollection.features || []).forEach(feature => {
                 const props = feature.properties || {};
-                if (props.taxon_group === 'Other (Reptiles, Amphibians)') {
-                    props.taxon_group = 'Other (Reptiles, Amphib., Crust.)';
-                }
+                if (REMAP[props.taxon_group]) props.taxon_group = REMAP[props.taxon_group];
             });
             return featureCollection;
         }
@@ -1160,7 +1186,12 @@
                 source: 'animals',
                 layout: {
                     'symbol-sort-key': ['*', -1, ['to-number', ['get', 'popularity'], 0]],
-                    'text-field': ['get', 'label'],
+                    'text-field': ['let', 'idx', ['index-of', ' (', ['get', 'label']],
+                        ['case', ['>=', ['var', 'idx'], 0],
+                            ['slice', ['get', 'label'], 0, ['var', 'idx']],
+                            ['get', 'label']
+                        ]
+                    ],
                     'text-font': [
                         'step', ['to-number', ['get', 'popularity'], 0],
                         ['literal', ['Open Sans Regular', 'Arial Unicode MS Regular']],
@@ -1169,11 +1200,12 @@
                     ],
                     'text-allow-overlap': false,
                     'text-ignore-placement': false,
+                    'text-padding': 6,
                     'text-size': [
                         'interpolate', ['linear'], ['zoom'],
-                        0, ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 6, 14.0, 11],
-                        8, ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 7, 14.0, 17],
-                        14, ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 8, 14.0, 22]
+                        2,  ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 3.5, 14.0, 11],
+                        8,  ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 7,   14.0, 17],
+                        14, ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 8,   14.0, 22]
                     ],
                     'text-offset': ['interpolate', ['linear'], ['zoom'], 2, ['literal', [0, 0.6]], 10, ['literal', [0, 1.6]]]
                 },
@@ -1218,6 +1250,10 @@
             if (!Array.isArray(coords) || coords.length < 2) return;
             const color = neonColor[category_iucn] || '#fff';
             const speciesLabel = String(label || 'Unknown species');
+            const _parenIdx = speciesLabel.indexOf(' (');
+            const speciesDisplayName = _parenIdx >= 0 ? speciesLabel.slice(0, _parenIdx) : speciesLabel;
+            const _rawDisambig = _parenIdx >= 0 ? speciesLabel.slice(_parenIdx) : '';
+            const speciesDisambig = _rawDisambig && _rawDisambig.slice(2, -1).toLowerCase() !== speciesDisplayName.toLowerCase() ? _rawDisambig : '';
             const wikiHref = safeExternalUrl(wiki_url) || wikipediaUrlFromProject(wiki_project, wiki_title || speciesLabel);
             const popularityNumber = Number(popularity);
             const formattedPopularity = Number.isFinite(popularityNumber) ? popularityNumber.toLocaleString() : 'n/a';
@@ -1243,7 +1279,7 @@
             const hasSlides = slides.length > 0;
             const imageHtml = hasSlides ? `
                 <div class="popup-image-wrap">
-                    <img class="popup-species-image" id="popup-slide-img" src="${escapeHtml(slides[0].url)}" alt="${escapeHtml(speciesLabel)}" loading="lazy" onload="if(this.naturalHeight>this.naturalWidth)this.classList.add('is-portrait')" onerror="this.style.display='none'">
+                    <img class="popup-species-image" id="popup-slide-img" src="${escapeHtml(slides[0].url)}" alt="${escapeHtml(speciesLabel)}" data-inat="${isInat}" loading="lazy" onload="const _r=this.naturalWidth/this.naturalHeight;if(_r>2.2){this.classList.add('is-ultrawide')}else if(_r<0.4){this.classList.add('is-ultranarrow')}else if(_r<1){this.classList.add('is-portrait')}else{this.style.height=Math.min(220,Math.round(this.clientWidth*this.naturalHeight/this.naturalWidth))+'px'}" onerror="this.style.display='none'">
                     ${slides.length > 1 ? `
                         <button class="popup-slide-btn popup-slide-prev">&#8249;</button>
                         <button class="popup-slide-btn popup-slide-next">&#8250;</button>
@@ -1273,10 +1309,10 @@
             popup.setLngLat(coords).setHTML(`
                 ${imageHtml}
                 <b style="font-size:14px">
-                    <a href="${escapeHtml(wikiHref)}" target="_blank" rel="noopener noreferrer" style="color:${color}; text-decoration:underline">${escapeHtml(speciesLabel)}</a>
+                    <a href="${escapeHtml(wikiHref)}" target="_blank" rel="noopener noreferrer" style="color:${color}; text-decoration:underline">${escapeHtml(speciesDisplayName)}</a>${speciesDisambig ? `<span style="color:rgba(255,255,255,0.45); font-size:11px; font-weight:400"> ${escapeHtml(speciesDisambig)}</span>` : ''}
                 </b><br>
                 <span style="color:${color}; font-weight:bold">&#9679; ${escapeHtml(category_iucn)}</span> — ${escapeHtml(categoryLabel[category_iucn] || 'Unknown category')}${year_published ? ` <span style="color:rgba(255,255,255,0.5)">(${escapeHtml(String(year_published))})</span>` : ''}<br>
-                <span style="color:rgba(255,255,255,0.78)">${escapeHtml(taxon_group || 'Unknown animal group')}${taxon_class ? ` (${escapeHtml(taxon_class)})` : ''}</span><br>
+                <span style="color:rgba(255,255,255,0.78)">${escapeHtml((taxon_group || 'Unknown animal group').replace(' (not comprehensive)', ''))}${taxon_class ? ` (${escapeHtml(taxon_class)})` : ''}</span><br>
                 ${populationTrendHtml}
                 ${matureIndividualsHtml}
                 <span style="color:rgba(255,255,255,0.6); font-size:11px">Wikipedia views/yr: ${formattedPopularity}</span>
@@ -1295,9 +1331,16 @@
                 const goTo = (newIdx) => {
                     idx = (newIdx + slides.length) % slides.length;
                     const slide = slides[idx];
-                    img.classList.remove('is-portrait');
+                    img.classList.remove('is-portrait', 'is-ultrawide', 'is-ultranarrow');
                     img.style.display = '';
-                    img.onload = () => { if (img.naturalHeight > img.naturalWidth) img.classList.add('is-portrait'); };
+                    img.style.height = '';
+                    img.onload = () => {
+                        const _r = img.naturalWidth / img.naturalHeight;
+                        if (_r > 2.2) img.classList.add('is-ultrawide');
+                        else if (_r < 0.4) img.classList.add('is-ultranarrow');
+                        else if (_r < 1) img.classList.add('is-portrait');
+                        else img.style.height = Math.min(220, Math.round(img.clientWidth * img.naturalHeight / img.naturalWidth)) + 'px';
+                    };
                     img.onerror = () => { img.style.display = 'none'; };
                     img.src = slide.url;
                     if (creditLink) { creditLink.href = slide.creditUrl; creditLink.textContent = slide.label; }

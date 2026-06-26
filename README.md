@@ -62,15 +62,15 @@ The notebook uses IUCN API v4 for assessment details, but it no longer starts fr
 
 When the shapefile exposes a `category` attribute, the notebook uses it as a conservative prefilter before calling the API: only taxa whose spatial category can be displayed on the globe are fetched. This avoids spending API calls on obvious LC/DD/NE spatial taxa.
 
-The IUCN API token is not stored in the notebook. Set it with the `IUCN_TOKEN` environment variable, or put it in the local ignored file `data/secrets/iucn_token.txt`.
+The IUCN API token is not stored in the notebook, but it's in the local ignored file `data/secrets/iucn_token.txt`.
 
 Available run modes:
-- `sample_mammals` — small run seeded from the local `MAMMALS` spatial package for fast iteration.
-- `sample_birds` — small run seeded from the local `BIRDS` spatial package for fast iteration.
 - `full_mammals` — taxa present in the local `MAMMALS` spatial package.
 - `full_other` — taxa present in the local `REPTILES`, `AMPHIBIANS`, `FW_CRABS`, `FW_CRAYFISH`, `FW_SHRIMPS`, and `LOBSTERS` spatial packages.
 - `full_fish` — taxa present in the local `FW_FISH` and `SHARKS_RAYS_CHIMAERAS` spatial packages.
 - `full_birds` — taxa present in the local `BIRDS` spatial package.
+- `full_marine_fish` — taxa present in the 10 marine fish spatial folders under `MARINE FISH/` (croakers/drums, eels, groupers, hagfish, salmonids, seabreams/snappers/grunts, sturgeons/paddlefishes, syngnathiform fishes, tunas/billfishes/swordfish, wrasses/parrotfishes).
+- sample versions of the above.
 
 The API fetch is rank-aware but not rank-exclusive: it keeps the IUCN taxon rank in `taxon_rank`. When a species mentions infrarank children but no fetched/displayable child has an endangered category, the parent species is kept.
 
@@ -78,11 +78,12 @@ The API fetch is rank-aware but not rank-exclusive: it keeps the IUCN taxon rank
 
 Ignored edge case for speed and simplicity: a non-threatened parent species whose missing infrarank child is threatened and absent from the shapefiles. The pipeline does not fetch LC/DD/NE parent taxa solely to discover this case.
 
-Current displayed animal groups:
-- Mammals
-- Birds
-- Other (Reptiles, Amphib., Crust.)
-- Fish (sharks, freshwater)
+Current displayed animal groups (filter names in the globe UI):
+- **Mammals** — comprehensive for assessed species with spatial data.
+- **Birds** — comprehensive for assessed species with spatial data.
+- **Reptiles, Amphibians** — comprehensive for assessed reptiles and amphibians with spatial data.
+- **Crustaceans (not comprehensive)** — freshwater crabs, crayfish, shrimps, and lobsters only; marine crustaceans not included.
+- **Fishes (not comprehensive)** — freshwater fishes (`FW_FISH`) are comprehensive; sharks/rays/chimaeras (`SHARKS_RAYS_CHIMAERAS`) are comprehensive; marine bony fish covered only for the groups in `full_marine_fish` (10 families). Many marine bony fish families remain outside current spatial coverage.
 
 Underlying IUCN classes currently expected in the selected spatial packages:
 - `Mammalia`
@@ -95,9 +96,9 @@ Underlying IUCN classes currently expected in the selected spatial packages:
 - `Petromyzonti`
 - `Sarcopterygii`
 
-The pipeline keeps the original IUCN class in `taxon_class` as raw API metadata, but derives the UI-facing `taxon_group` from `spatial_package`. This keeps the browser grouping aligned with the spatial download actually used: mammals come from `MAMMALS`, reptiles/amphibians/selected crustaceans from the Other packages, and fish only from the selected fish packages.
+The pipeline keeps the original IUCN class in `taxon_class` as raw API metadata, but derives a UI-facing `taxon_group` for user filters.
 
-Excluded by default: plants, fungi, corals, molluscs, most other invertebrates beyond the selected crustacean packages, marine bony fish outside the current freshwater package, and insects. Insects are not included in final mode by default because the API can filter `Insecta`, but not "large insects" specifically, so it would add a lot of low-signal API calls.
+Excluded by default: plants, fungi, marine bony fish outside the main fish groups processed, insects, most other invertebrates beyond the selected IUCN-mapped crustacean and molluscs groups.
 
 Included Red List categories:
 - **EW** — Extinct in the Wild (surviving only in captivity or cultivation)
@@ -109,12 +110,13 @@ Included Red List categories:
 ### Channel 2 — IUCN Spatial Data
 What we take: geographic boundaries and source spatial geometries for species habitats. The API assessment detail tells us whether range polygons or points exist; the actual geometries are read from local IUCN shapefiles.
 
-Local spatial downloads live in `data/shapefiles/` and are ignored by git. The notebook first builds a spatial manifest from explicit package folders:
+Local spatial downloads live in a local folder `data/shapefiles/` and are ignored by git. The notebook first builds a spatial manifest from explicit spatial folders:
 
 - `sample_mammals`, `full_mammals` → `data/shapefiles/MAMMALS/*.shp`
 - `sample_birds`, `full_birds` → `data/shapefiles/BIRDS/*.gpkg`
 - `full_other` → `data/shapefiles/REPTILES/*.shp`, `AMPHIBIANS/*.shp`, `FW_CRABS/*.shp`, `FW_CRAYFISH/*.shp`, `FW_SHRIMPS/*.shp`, `LOBSTERS/*.shp`
 - `full_fish` → `data/shapefiles/FW_FISH/*.shp`, `SHARKS_RAYS_CHIMAERAS/*.shp`
+- `full_marine_fish` → `data/shapefiles/MARINE FISH/{CROAKERS_DRUMS,EELS,GROUPERS,HAGFISH,SALMONIDS,SEABREAMS_SNAPPERS_GRUNTS,STURGEONS_PADDLEFISHES,SYNGNATHIFORM_FISHES,TUNAS_BILLFISHES_SWORDFISH,WRASSES_PARROTFISHES}/*.shp`
 
 The cleaning script uses the target table's explicit `spatial_package` value when choosing folders. `taxon_class` is not used for spatial routing.
 
@@ -124,22 +126,22 @@ Spatial download coverage log for IUCN spatial-download categories. Keep this le
 |---|---|---|---|---|---|
 | Mammals / `MAMMALS` | Covered | `Mammalia` | Mammals | `sample_mammals`, `full_mammals` | Split files such as `MAMMALS_PART*.shp` are concatenated by the cleaning script. |
 | Birds / `BIRDS` | Covered | `Aves` | Birds | `sample_birds`, `full_birds` | BirdLife BOTW GPKG format; taxon ID column is `sisid`. |
-| Amphibians / `AMPHIBIANS` | Covered | `Amphibia` | Other (Reptiles, Amphib., Crust.) | `full_other` | Grouped with reptiles and selected crustaceans in the UI. |
-| Reptiles / `REPTILES` | Covered | `Reptilia` | Other (Reptiles, Amphib., Crust.) | `full_other` | Grouped with amphibians and selected crustaceans in the UI. |
-| Freshwater crabs / `FW_CRABS` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean spatial files. |
-| Freshwater crayfish / `FW_CRAYFISH` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean spatial files. |
-| Freshwater shrimps / `FW_SHRIMPS` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean spatial files. |
-| Lobsters / `LOBSTERS` | Covered | `Malacostraca` | Other (Reptiles, Amphib., Crust.) | `full_other` | Selected crustacean spatial files. |
-| Freshwater fishes / `FW_FISH` | Covered | `Actinopterygii`, `Chondrichthyes`, `Myxini`, `Petromyzonti`, `Sarcopterygii` when present in these spatial files | Fish (sharks, freshwater) | `full_fish` | Freshwater fish spatial files; split files such as `FW_FISH_PART*.shp` are concatenated by the cleaning script. Marine fish outside these spatial files are not queried. |
-| Sharks, rays, and chimaeras / `SHARKS_RAYS_CHIMAERAS` | Covered | `Chondrichthyes` | Fish (sharks, freshwater) | `full_fish` | Cartilaginous fish spatial files. |
-| Other fishes not listed above | Not covered | TBD | TBD | none | Kept out until the relevant folder is downloaded and mapped explicitly; this includes marine fish packages outside the current freshwater fish and sharks/rays/chimaeras sources. |
+| Amphibians / `AMPHIBIANS` | Covered | `Amphibia` | Reptiles, Amphibians | `full_other` | Comprehensive for assessed species with spatial data. |
+| Reptiles / `REPTILES` | Covered | `Reptilia` | Reptiles, Amphibians | `full_other` | Comprehensive for assessed species with spatial data. |
+| Freshwater crabs / `FW_CRABS` | Covered | `Malacostraca` | Crustaceans (not comprehensive) | `full_other` | Freshwater only; marine crustaceans not included. |
+| Freshwater crayfish / `FW_CRAYFISH` | Covered | `Malacostraca` | Crustaceans (not comprehensive) | `full_other` | Freshwater only; marine crustaceans not included. |
+| Freshwater shrimps / `FW_SHRIMPS` | Covered | `Malacostraca` | Crustaceans (not comprehensive) | `full_other` | Freshwater only; marine crustaceans not included. |
+| Lobsters / `LOBSTERS` | Covered | `Malacostraca` | Crustaceans (not comprehensive) | `full_other` | Only 1 threatened species in this spatial file. |
+| Freshwater fishes / `FW_FISH` | Covered | `Actinopterygii`, `Chondrichthyes`, `Myxini`, `Petromyzonti`, `Sarcopterygii` | Fishes (not comprehensive) | `full_fish` | Comprehensive for freshwater fish. Split files such as `FW_FISH_PART*.shp` are concatenated by the cleaning script. |
+| Sharks, rays, and chimaeras / `SHARKS_RAYS_CHIMAERAS` | Covered | `Chondrichthyes` | Fishes (not comprehensive) | `full_fish` | Comprehensive for cartilaginous fish. |
+| Marine fish / `MARINE FISH/*` | Covered (partial) | `Actinopterygii` | Fishes (not comprehensive) | `full_marine_fish` | 10 family groups currently included; many marine bony fish families remain outside current spatial coverage. |
 | Corals | Not covered | TBD | none | none | Outside the current animal-label scope. |
 | Molluscs, including cone snails and freshwater molluscs | Not covered | TBD | none | none | Outside the current animal-label scope. |
 | Insects and other terrestrial/freshwater arthropods | Not covered | TBD | none | none | Excluded by default because broad insect coverage would create many low-signal API calls. Add only explicit packages if needed later. |
 | Plants, including conifers, cycads, mangroves, and seagrasses | Not covered | TBD | none | none | Outside the current animal-label scope. |
 | Any other IUCN downloadable spatial category | Not covered until mapped | TBD | TBD | none | Add the folder pattern to `SPATIAL_PACKAGE_CONFIG`, include it in a `RUN_MODE_SPATIAL_PACKAGES` entry, choose a UI group/run mode, then document it here. |
 
-Some downloads are split into several shapefile parts, such as `MAMMALS_PART1.shp` / `MAMMALS_PART2.shp` and `FW_FISH_PART*.shp`; these are chunks of the same spatial package and should be concatenated by the cleaning script. Match spatial records to API rows with `id_no == taxonid`. Do not match on `assessment_id`.
+Some downloads are split into several shapefile parts, such as `MAMMALS_PART1.shp` / `MAMMALS_PART2.shp` and `FW_FISH_PART*.shp`; these are chunks of the same spatial package and are concatenated by the cleaning script. We match spatial records to API rows with `id_no == taxonid`, not on `assessment_id`.
 
 The notebook launches `scripts/clean_spatial_data.py` after the IUCN API fetch. It writes the current target taxa to `data/processed/iucn_target_taxa.csv`, filters the heavy source files once, and outputs `data/processed/iucn_spatial_clean.geojson`. `data/processed/` is also ignored by git.
 
@@ -324,13 +326,7 @@ The negative sort key gives more popular species placement priority, so the GPU 
 
 At low zoom, the Earth appears covered in a glowing swarm of colored fireflies before individual names become legible.
 
-**Glassmorphism UI.** Filter buttons (All / EW / CR / EN / VU / NT) float over the map with:
-
-```css
-background: rgba(10, 10, 15, 0.6);
-backdrop-filter: blur(12px);
-border: 1px solid rgba(255, 255, 255, 0.08);
-```
+**Glassmorphism UI.** Filter buttons (All / EW / CR / EN / VU / NT) float over the map.
 
 ---
 

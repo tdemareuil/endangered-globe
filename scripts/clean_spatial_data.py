@@ -34,6 +34,21 @@ PACKAGE_PATTERNS = {
     "FW_FISH": ["FW_FISH/*.shp", "FW_FISH/*.gpkg"],
     "SHARKS_RAYS_CHIMAERAS": ["SHARKS_RAYS_CHIMAERAS/*.shp", "SHARKS_RAYS_CHIMAERAS/*.gpkg"],
     "BIRDS": ["BIRDS/*.gpkg"],
+    # Marine fish — subfolders under MARINE FISH/
+    "CROAKERS_DRUMS":            ["MARINE FISH/CROAKERS_DRUMS/*.shp"],
+    "EELS":                      ["MARINE FISH/EELS/*.shp"],
+    "GROUPERS":                  ["MARINE FISH/GROUPERS/*.shp"],
+    "HAGFISH":                   ["MARINE FISH/HAGFISH/*.shp"],
+    "SALMONIDS":                 ["MARINE FISH/SALMONIDS/*.shp"],
+    "SEABREAMS_SNAPPERS_GRUNTS": ["MARINE FISH/SEABREAMS_SNAPPERS_GRUNTS/*.shp"],
+    "STURGEONS_PADDLEFISHES":    ["MARINE FISH/STURGEONS_PADDLEFISHES/*.shp"],
+    "SYNGNATHIFORM_FISHES":      ["MARINE FISH/SYNGNATHIFORM_FISHES/*.shp"],
+    "TUNAS_BILLFISHES_SWORDFISH":["MARINE FISH/TUNAS_BILLFISHES_SWORDFISH/*.shp"],
+    "WRASSES_PARROTFISHES":      ["MARINE FISH/WRASSES_PARROTFISHES/*.shp"],
+    # Molluscs — subfolders under MOLLUSCS/
+    "ABALONES":           ["MOLLUSCS/ABALONES/*.shp"],
+    "CONE_SNAILS":        ["MOLLUSCS/CONE_SNAILS/*.shp"],
+    "REEF_FORMING_CORALS":["MOLLUSCS/REEF_FORMING_CORALS/*.shp"],
 }
 
 PRESENCE_CODES = None  # Keep all presence codes; the notebook ranks them before centroid placement.
