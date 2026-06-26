@@ -70,7 +70,7 @@ Available run modes:
 - `full_fish` — taxa present in the local `FW_FISH` and `SHARKS_RAYS_CHIMAERAS` spatial packages.
 - `full_birds` — taxa present in the local `BIRDS` spatial package.
 - `full_marine_fish` — taxa present in the 10 marine fish spatial folders under `MARINE FISH/` (croakers/drums, eels, groupers, hagfish, salmonids, seabreams/snappers/grunts, sturgeons/paddlefishes, syngnathiform fishes, tunas/billfishes/swordfish, wrasses/parrotfishes).
-- `full_molluscs` — taxa present in the `MOLLUSCS/ABALONES`, `MOLLUSCS/CONE_SNAILS`, and `MOLLUSCS/REEF_FORMING_CORALS` spatial packages.
+- `full_molluscs` — taxa present in the `MOLLUSCS/ABALONES`, `MOLLUSCS/CONE_SNAILS`, `MOLLUSCS/REEF_FORMING_CORALS`, and `MOLLUSCS/FW_MOLLUSCS` spatial packages.
 - sample versions of the above.
 
 The API fetch is rank-aware but not rank-exclusive: it keeps the IUCN taxon rank in `taxon_rank`. When a species mentions infrarank children but no fetched/displayable child has an endangered category, the parent species is kept.
@@ -115,6 +115,7 @@ Spatial download coverage log for IUCN spatial-download categories:
 | Abalones / `MOLLUSCS/ABALONES` | Covered | `Gastropoda` | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | — |
 | Cone snails / `MOLLUSCS/CONE_SNAILS` | Covered | `Gastropoda` | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | — |
 | Reef-forming corals / `MOLLUSCS/REEF_FORMING_CORALS` | Covered | `Anthozoa` | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | Corals included via the MOLLUSCS spatial folder. |
+| Freshwater molluscs / `MOLLUSCS/FW_MOLLUSCS` | Covered | `Bivalvia`, `Gastropoda` | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | Single large shapefile covering freshwater bivalves and gastropods. |
 | Freshwater fishes / `FW_FISH` | Covered | `Actinopterygii`, `Chondrichthyes`, `Myxini`, `Petromyzonti`, `Sarcopterygii` | Fishes (not comprehensive) | `full_fish` | Comprehensive for freshwater fish. Split files such as `FW_FISH_PART*.shp` are concatenated by the cleaning script. |
 | Sharks, rays, and chimaeras / `SHARKS_RAYS_CHIMAERAS` | Covered | `Chondrichthyes` | Fishes (not comprehensive) | `full_fish` | Comprehensive for cartilaginous fish. |
 | Marine fish / `MARINE FISH/*` | Covered (partial) | `Actinopterygii` | Fishes (not comprehensive) | `full_marine_fish` | 10 family groups currently included; many marine bony fish families remain outside current spatial coverage. |

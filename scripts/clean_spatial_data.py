@@ -49,6 +49,7 @@ PACKAGE_PATTERNS = {
     "ABALONES":           ["MOLLUSCS/ABALONES/*.shp"],
     "CONE_SNAILS":        ["MOLLUSCS/CONE_SNAILS/*.shp"],
     "REEF_FORMING_CORALS":["MOLLUSCS/REEF_FORMING_CORALS/*.shp"],
+    "FW_MOLLUSCS":        ["MOLLUSCS/FW_MOLLUSCS/*.shp"],
 }
 
 PRESENCE_CODES = None  # Keep all presence codes; the notebook ranks them before centroid placement.

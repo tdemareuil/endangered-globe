@@ -93,6 +93,7 @@ SPATIAL_PACKAGE_CONFIG = {
     "ABALONES":          {"patterns": ["MOLLUSCS/ABALONES/*.shp"],    "taxon_group": MOLLUSCS_TAXON_GROUP},
     "CONE_SNAILS":       {"patterns": ["MOLLUSCS/CONE_SNAILS/*.shp"], "taxon_group": MOLLUSCS_TAXON_GROUP},
     "REEF_FORMING_CORALS":{"patterns": ["MOLLUSCS/REEF_FORMING_CORALS/*.shp"], "taxon_group": MOLLUSCS_TAXON_GROUP},
+    "FW_MOLLUSCS":       {"patterns": ["MOLLUSCS/FW_MOLLUSCS/*.shp"], "taxon_group": MOLLUSCS_TAXON_GROUP},
     # BirdLife BOTW GPKG — single layer "all_species", taxon ID column is "sisid", no category column
     "BIRDS": {"patterns": ["BIRDS/*.gpkg"], "taxon_group": "Birds"},
 }
@@ -103,7 +104,7 @@ MARINE_FISH_PACKAGES = [
     "TUNAS_BILLFISHES_SWORDFISH", "WRASSES_PARROTFISHES",
 ]
 
-MOLLUSCS_PACKAGES = ["ABALONES", "CONE_SNAILS", "REEF_FORMING_CORALS"]
+MOLLUSCS_PACKAGES = ["ABALONES", "CONE_SNAILS", "REEF_FORMING_CORALS", "FW_MOLLUSCS"]
 
 RUN_MODE_SPATIAL_PACKAGES = {
     "sample_mammals":     ["MAMMALS"],
