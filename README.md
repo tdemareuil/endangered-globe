@@ -102,28 +102,28 @@ Local spatial downloads from the official [IUCN spatial data download page](http
 
 Spatial download coverage log for IUCN spatial-download categories:
 
-| IUCN spatial category / local folder | Status | IUCN class metadata expected | UI group | Run mode | Notes |
-|---|---|---|---|---|---|
-| Mammals / `MAMMALS` | Covered | `Mammalia` | Mammals | `sample_mammals`, `full_mammals` | Split files such as `MAMMALS_PART*.shp` are concatenated by the cleaning script. |
-| Birds / `BIRDS` | Covered | `Aves` | Birds | `sample_birds`, `full_birds` | BirdLife BOTW GPKG format; taxon ID column is `sisid`. |
-| Amphibians / `AMPHIBIANS` | Covered | `Amphibia` | Reptiles, Amphibians | `full_other` | Comprehensive for assessed species with spatial data. |
-| Reptiles / `REPTILES` | Covered | `Reptilia` | Reptiles, Amphibians | `full_other` | Comprehensive for assessed species with spatial data. |
-| Freshwater crabs / `FW_CRABS` | Covered | `Malacostraca` | Crustaceans, Molluscs (not comprehensive) | `full_other` | Freshwater only; marine crustaceans not included. |
-| Freshwater crayfish / `FW_CRAYFISH` | Covered | `Malacostraca` | Crustaceans, Molluscs (not comprehensive) | `full_other` | Freshwater only; marine crustaceans not included. |
-| Freshwater shrimps / `FW_SHRIMPS` | Covered | `Malacostraca` | Crustaceans, Molluscs (not comprehensive) | `full_other` | Freshwater only; marine crustaceans not included. |
-| Lobsters / `LOBSTERS` | Covered | `Malacostraca` | Crustaceans, Molluscs (not comprehensive) | `full_other` | Only 1 threatened species in this spatial file. |
-| Abalones / `MOLLUSCS/ABALONES` | Covered | `Gastropoda` | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | — |
-| Cone snails / `MOLLUSCS/CONE_SNAILS` | Covered | `Gastropoda` | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | — |
-| Reef-forming corals / `MOLLUSCS/REEF_FORMING_CORALS` | Covered | `Anthozoa` | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | Corals included via the MOLLUSCS spatial folder. |
-| Freshwater molluscs / `MOLLUSCS/FW_MOLLUSCS` | Covered | `Bivalvia`, `Gastropoda` | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | Single large shapefile covering freshwater bivalves and gastropods. |
-| Freshwater fishes / `FW_FISH` | Covered | `Actinopterygii`, `Chondrichthyes`, `Myxini`, `Petromyzonti`, `Sarcopterygii` | Fishes (not comprehensive) | `full_fish` | Comprehensive for freshwater fish. Split files such as `FW_FISH_PART*.shp` are concatenated by the cleaning script. |
-| Sharks, rays, and chimaeras / `SHARKS_RAYS_CHIMAERAS` | Covered | `Chondrichthyes` | Fishes (not comprehensive) | `full_fish` | Comprehensive for cartilaginous fish. |
-| Marine fish / `MARINE FISH/*` | Covered (partial) | `Actinopterygii` | Fishes (not comprehensive) | `full_marine_fish` | 10 family groups currently included; many marine bony fish families remain outside current spatial coverage. |
-| Other corals (non-reef-forming) | Not covered | TBD | none | none | Outside the current animal-label scope. |
-| Other molluscs (clams, squid, octopus, etc.) | Not covered | TBD | none | none | Only abalones and cone snails currently covered via `full_molluscs`. |
-| Insects and other terrestrial/freshwater arthropods | Not covered | TBD | none | none | Excluded by default because broad insect coverage would create many low-signal API calls. Add only explicit packages if needed later. |
-| Plants, including conifers, cycads, mangroves, and seagrasses | Not covered | TBD | none | none | Outside the current animal-label scope. |
-| Any other IUCN downloadable spatial category | Not covered until mapped | TBD | TBD | none | Add the folder pattern to `SPATIAL_PACKAGE_CONFIG`, include it in a `RUN_MODE_SPATIAL_PACKAGES` entry, choose a UI group/run mode, then document it here. |
+| IUCN spatial category / local folder | Status | UI group | Run mode | Notes |
+|---|---|---|---|---|
+| Mammals / `MAMMALS` | Covered | Mammals | `sample_mammals`, `full_mammals` | Split files such as `MAMMALS_PART*.shp` are concatenated by the cleaning script. |
+| Birds / `BIRDS` | Covered | Birds | `sample_birds`, `full_birds` | BirdLife BOTW GPKG format; taxon ID column is `sisid`. |
+| Amphibians / `AMPHIBIANS` | Covered | Reptiles, Amphibians | `full_other` | Comprehensive for assessed species with spatial data. |
+| Reptiles / `REPTILES` | Covered | Reptiles, Amphibians | `full_other` | Comprehensive for assessed species with spatial data. |
+| Freshwater crabs / `FW_CRABS` | Covered | Crustaceans, Molluscs (not comprehensive) | `full_other` | Freshwater only; marine crustaceans not included. |
+| Freshwater crayfish / `FW_CRAYFISH` | Covered | Crustaceans, Molluscs (not comprehensive) | `full_other` | Freshwater only; marine crustaceans not included. |
+| Freshwater shrimps / `FW_SHRIMPS` | Covered | Crustaceans, Molluscs (not comprehensive) | `full_other` | Freshwater only; marine crustaceans not included. |
+| Lobsters / `LOBSTERS` | Covered | Crustaceans, Molluscs (not comprehensive) | `full_other` | Only 1 threatened species in this spatial file. |
+| Abalones / `MOLLUSCS/ABALONES` | Covered | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | — |
+| Cone snails / `MOLLUSCS/CONE_SNAILS` | Covered | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | — |
+| Reef-forming corals / `MOLLUSCS/REEF_FORMING_CORALS` | Covered | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | Corals included via the MOLLUSCS spatial folder. |
+| Freshwater molluscs / `MOLLUSCS/FW_MOLLUSCS` | Covered | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | Single large shapefile covering freshwater bivalves and gastropods. |
+| Freshwater fishes / `FW_FISH` | Covered | Fishes (not comprehensive) | `full_fish` | Comprehensive for freshwater fish. Split files such as `FW_FISH_PART*.shp` are concatenated by the cleaning script. |
+| Sharks, rays, and chimaeras / `SHARKS_RAYS_CHIMAERAS` | Covered | Fishes (not comprehensive) | `full_fish` | Comprehensive for cartilaginous fish. |
+| Marine fish / `MARINE FISH/*` | Covered (partial) | Fishes (not comprehensive) | `full_marine_fish` | 10 family groups currently included; many marine bony fish families remain outside current spatial coverage. |
+| Other corals (non-reef-forming) | Not covered | none | none | Outside the current animal-label scope. |
+| Other molluscs (clams, squid, octopus, etc.) | Not covered | none | none | Not explicitly available for download. |
+| Insects and other terrestrial/freshwater arthropods | Not covered | none | none | Excluded by default because broad insect coverage would create many low-signal API calls. Add only explicit packages if needed later. |
+| Plants, including conifers, cycads, mangroves, and seagrasses | Not covered | none | none | Outside the current animal-label scope. |
+| Any other IUCN downloadable spatial category | Not covered until mapped | TBD | none | Add the folder pattern to `SPATIAL_PACKAGE_CONFIG`, include it in a `RUN_MODE_SPATIAL_PACKAGES` entry, choose a UI group/run mode, then document it here. |
 
 Some downloads are split into several shapefile parts, such as `MAMMALS_PART1.shp` / `MAMMALS_PART2.shp` and `FW_FISH_PART*.shp`; these are chunks of the same spatial package and are concatenated by the cleaning script. We match spatial records to API rows with `id_no == taxonid`, not on `assessment_id`.
 
