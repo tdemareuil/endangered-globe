@@ -86,19 +86,6 @@ Current displayed animal groups (filter names in the globe UI):
 - **Crustaceans, Molluscs (not comprehensive)** — freshwater crabs, crayfish, shrimps, and lobsters (`full_other`); abalones, cone snails, and reef-forming corals (`full_molluscs`). Marine crustaceans and most mollusc families not included.
 - **Fishes (not comprehensive)** — freshwater fishes (`FW_FISH`) are comprehensive; sharks/rays/chimaeras (`SHARKS_RAYS_CHIMAERAS`) are comprehensive; marine bony fish covered only for the groups in `full_marine_fish` (10 families). Many marine bony fish families remain outside current spatial coverage.
 
-Underlying IUCN classes currently expected in the selected spatial packages:
-- `Mammalia`
-- `Reptilia`
-- `Amphibia`
-- `Malacostraca`
-- `Actinopterygii`
-- `Chondrichthyes`
-- `Myxini`
-- `Petromyzonti`
-- `Sarcopterygii`
-
-The pipeline keeps the original IUCN class in `taxon_class` as raw API metadata, but derives a UI-facing `taxon_group` for user filters.
-
 Excluded by default: plants, fungi, marine bony fish outside the main fish groups processed, insects, most other invertebrates beyond the selected IUCN-mapped crustacean and molluscs groups.
 
 Included Red List categories:
@@ -111,18 +98,9 @@ Included Red List categories:
 ### Channel 2 — IUCN Spatial Data
 What we take: geographic boundaries and source spatial geometries for species habitats. The API assessment detail tells us whether range polygons or points exist; the actual geometries are read from local IUCN shapefiles.
 
-Local spatial downloads live in a local folder `data/shapefiles/` and are ignored by git. The notebook first builds a spatial manifest from explicit spatial folders:
+Local spatial downloads from the official [IUCN spatial data download page](https://www.iucnredlist.org/resources/spatial-data-download) live in a local folder `data/shapefiles/` and are ignored by git. After file cleaning and geometries simplification, the notebook first builds a spatial manifest of species to fetch based on spatial folders.
 
-- `sample_mammals`, `full_mammals` → `data/shapefiles/MAMMALS/*.shp`
-- `sample_birds`, `full_birds` → `data/shapefiles/BIRDS/*.gpkg`
-- `full_other` → `data/shapefiles/REPTILES/*.shp`, `AMPHIBIANS/*.shp`, `FW_CRABS/*.shp`, `FW_CRAYFISH/*.shp`, `FW_SHRIMPS/*.shp`, `LOBSTERS/*.shp`
-- `full_fish` → `data/shapefiles/FW_FISH/*.shp`, `SHARKS_RAYS_CHIMAERAS/*.shp`
-- `full_marine_fish` → `data/shapefiles/MARINE FISH/{CROAKERS_DRUMS,EELS,GROUPERS,HAGFISH,SALMONIDS,SEABREAMS_SNAPPERS_GRUNTS,STURGEONS_PADDLEFISHES,SYNGNATHIFORM_FISHES,TUNAS_BILLFISHES_SWORDFISH,WRASSES_PARROTFISHES}/*.shp`
-- `full_molluscs` → `data/shapefiles/MOLLUSCS/{ABALONES,CONE_SNAILS,REEF_FORMING_CORALS}/*.shp`
-
-The cleaning script uses the target table's explicit `spatial_package` value when choosing folders. `taxon_class` is not used for spatial routing.
-
-Spatial download coverage log for IUCN spatial-download categories. Keep this ledger in sync with the official [IUCN spatial data download page](https://www.iucnredlist.org/resources/spatial-data-download) whenever a new package is downloaded or wired into the pipeline.
+Spatial download coverage log for IUCN spatial-download categories:
 
 | IUCN spatial category / local folder | Status | IUCN class metadata expected | UI group | Run mode | Notes |
 |---|---|---|---|---|---|
