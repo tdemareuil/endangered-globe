@@ -1854,6 +1854,7 @@ def search_inaturalist_image(scientific_name, retries=3):
     Returns (image_url, attribution, license_code, inat_url) or (None, None, None, None).
     All-rights-reserved photos are included — callers must display attribution and link back.
     """
+    _last_exc = None
     for attempt in range(retries):
         try:
             r = requests.get(
@@ -1866,20 +1867,18 @@ def search_inaturalist_image(scientific_name, retries=3):
                 wait = 2 ** attempt * 3
                 tqdm.write(f"  [iNaturalist] 429 for {scientific_name!r} — waiting {wait}s (attempt {attempt+1}/{retries})")
                 time.sleep(wait)
+                _last_exc = RuntimeError(f"429 after {retries} retries")
                 continue
             r.raise_for_status()
             break
-        except requests.exceptions.Timeout:
-            tqdm.write(f"  [iNaturalist] timeout for {scientific_name!r} (attempt {attempt + 1}/{retries})")
-            if attempt == retries - 1:
-                return None, None, None, None
-            time.sleep(2 ** attempt * 2)
         except Exception as e:
-            tqdm.write(f"  [iNaturalist] error for {scientific_name!r}: {e}")
-            return None, None, None, None
+            tqdm.write(f"  [iNaturalist] {'timeout' if isinstance(e, requests.exceptions.Timeout) else 'error'} for {scientific_name!r} (attempt {attempt+1}/{retries}): {e}")
+            _last_exc = e
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt * 2)
     else:
         tqdm.write(f"  [iNaturalist] gave up after {retries} retries for {scientific_name!r}")
-        return None, None, None, None
+        raise _last_exc  # network error — caller must not cache
 
     results = r.json().get("results", [])
     if not results:
@@ -2172,6 +2171,13 @@ def search_commons_image(scientific_name, common_name):
             image_url = imageinfo.get("thumburl") or imageinfo.get("url")
             if not image_url or is_probable_range_map_title(image_url):
                 tqdm.write(f"  [Commons] excluded (map-like URL): {image_url!r} for {scientific_name!r}")
+                continue
+            _PLACEHOLDER_KEYWORDS = [
+                "Falta_imagem", "Nuvola_apps_error", "MalayArchipelago",
+                "ID_Talaud_islands", "Missing", "2814153094769%29",
+            ]
+            if any(kw in image_url for kw in _PLACEHOLDER_KEYWORDS):
+                tqdm.write(f"  [Commons] excluded (placeholder URL): {image_url!r} for {scientific_name!r}")
                 continue
             extmetadata = imageinfo.get("extmetadata") or {}
             return {

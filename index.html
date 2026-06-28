@@ -562,12 +562,13 @@
                                     class="dot dot-group"></span> Mammals</label>
                             <label><input type="checkbox" name="animal-filter" value="Birds"><span
                                     class="dot dot-group"></span> Birds</label>
-                            <label><input type="checkbox" name="animal-filter"
-                                    value="Reptiles, Amphibians"><span class="dot dot-group"></span> Reptiles, Amphibians</label>
+                            <label><input type="checkbox" name="animal-filter" value="Reptiles, Amphibians"><span
+                                    class="dot dot-group"></span> Reptiles, Amphibians</label>
                             <label><input type="checkbox" name="animal-filter" value="Fishes (not comprehensive)"><span
                                     class="dot dot-group"></span> Fishes (not comprehensive)</label>
                             <label><input type="checkbox" name="animal-filter"
-                                    value="Crustaceans, Molluscs (not comprehensive)"><span class="dot dot-group"></span> Crustaceans, Molluscs (not comprehensive)</label>
+                                    value="Crustaceans, Molluscs (not comprehensive)"><span
+                                    class="dot dot-group"></span> Crustaceans, Molluscs (not comprehensive)</label>
                         </div>
                         <button id="random-species-button" class="random-species-button" type="button">Zoom on a random
                             species</button>
@@ -581,7 +582,10 @@
                         <div class="details-copy">
                             <p>The dataset starts from the latest global IUCN Red List assessments. We keep the most
                                 granular endangered taxonomy level available (species or subspecies).</p>
-                            <p>Spatial placement uses IUCN and BirdLife range data. The representative geometry is
+                            <p>Spatial placement uses IUCN and BirdLife range data. 88% of IUCN-assessed species have
+                                spatial data (<a
+                                    href="https://www.iucnredlist.org/resources/spatial-data-download">source</a>). The
+                                representative geometry is
                                 chosen from a prioritized combination of presence (Extant, Probably Extant, Possibly
                                 Extant) and seasonality (Resident, Breeding, Non-breeding, Passage). Centroids are then
                                 computed to get one point per species.
@@ -599,7 +603,8 @@
                             <figure class="coverage-figure">
                                 <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Red_List_by_group_260327.png"
                                     alt="IUCN Red List species count by group and category" />
-                                <figcaption>This project currently covers the 5 first groups (excl. some marine fishes).
+                                <figcaption>This project currently covers mostly the 5 first groups (excl. some marine
+                                    fishes).
                                     Total species or sub-species displayed: <span id="species-count">—</span>.
                                 </figcaption>
                             </figure>
@@ -1203,9 +1208,9 @@
                     'text-padding': 6,
                     'text-size': [
                         'interpolate', ['linear'], ['zoom'],
-                        2,  ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 3.5, 14.0, 11],
-                        8,  ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 7,   14.0, 17],
-                        14, ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 8,   14.0, 22]
+                        2, ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 3.5, 14.0, 11],
+                        8, ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 7, 14.0, 17],
+                        14, ['interpolate', ['linear'], ['ln', ['max', ['to-number', ['get', 'popularity'], 1], 1]], 4.5, 8, 14.0, 22]
                     ],
                     'text-offset': ['interpolate', ['linear'], ['zoom'], 2, ['literal', [0, 0.6]], 10, ['literal', [0, 1.6]]]
                 },

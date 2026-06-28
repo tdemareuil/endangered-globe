@@ -1,5 +1,5 @@
 taxonid,drop_stage,drop_reason,scientific_name,main_common_name,category_iucn,taxon_group
-219556728,shared_wiki_url,Multiple IUCN taxa resolved to the same Wikipedia article,Porites hadramauti,,CR,"Crustaceans, Molluscs (not comp.)"
-219360097,shared_wiki_url,Multiple IUCN taxa resolved to the same Wikipedia article,Montipora carinata,,EN,"Crustaceans, Molluscs (not comp.)"
-219556732,shared_wiki_url,Multiple IUCN taxa resolved to the same Wikipedia article,Porites hawaiiensis,,NT,"Crustaceans, Molluscs (not comp.)"
-219556702,shared_wiki_url,Multiple IUCN taxa resolved to the same Wikipedia article,Porites farasani,,VU,"Crustaceans, Molluscs (not comp.)"
+219556728,shared_wiki_url,Multiple IUCN taxa resolved to the same Wikipedia article,Porites hadramauti,,CR,"Crustaceans, Molluscs (not comprehensive)"
+219360097,shared_wiki_url,Multiple IUCN taxa resolved to the same Wikipedia article,Montipora carinata,,EN,"Crustaceans, Molluscs (not comprehensive)"
+219556732,shared_wiki_url,Multiple IUCN taxa resolved to the same Wikipedia article,Porites hawaiiensis,,NT,"Crustaceans, Molluscs (not comprehensive)"
+219556702,shared_wiki_url,Multiple IUCN taxa resolved to the same Wikipedia article,Porites farasani,,VU,"Crustaceans, Molluscs (not comprehensive)"
