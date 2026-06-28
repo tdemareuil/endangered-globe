@@ -540,7 +540,7 @@
                                 rel="noopener noreferrer">Notable People</a> by Topi Tjukanov.
                         </p>
                         <div class="filter-group" data-filter-group="threat">
-                            <div class="filter-title">Threat level</div>
+                            <div class="filter-title">Threat level (by color)</div>
                             <label><input type="checkbox" name="threat-filter" value="all" checked><span
                                     class="dot dot-all"></span> All statuses</label>
                             <label><input type="checkbox" name="threat-filter" value="EW"><span
@@ -567,9 +567,11 @@
                             <label><input type="checkbox" name="animal-filter" value="Fishes (not comprehensive)"><span
                                     class="dot dot-group"></span> Fishes (not comprehensive)</label>
                             <label><input type="checkbox" name="animal-filter"
-                                    value="Crustaceans, Molluscs (not comprehensive)"><span
-                                    class="dot dot-group"></span> Crustaceans, Molluscs (not comprehensive)</label>
+                                    value="Crustaceans, Molluscs, Corals (not comprehensive)"><span
+                                    class="dot dot-group"></span> Crustaceans, Molluscs, Corals (not
+                                comprehensive)</label>
                         </div>
+                        <p id="filter-count-label" style="font-size:11px;font-style:italic;color:rgba(255,255,255,0.5);margin:12px 0 0"></p>
                         <button id="random-species-button" class="random-species-button" type="button">Zoom on a random
                             species</button>
                     </div>
@@ -580,36 +582,43 @@
                             <div class="details-title">Method</div>
                         </div>
                         <div class="details-copy">
-                            <p>The dataset starts from the latest global IUCN Red List assessments. We keep the most
-                                granular endangered taxonomy level available (species or subspecies).</p>
-                            <p>Spatial placement uses IUCN and BirdLife range data. 88% of IUCN-assessed species have
-                                spatial data (<a
-                                    href="https://www.iucnredlist.org/resources/spatial-data-download">source</a>). The
-                                representative geometry is
-                                chosen from a prioritized combination of presence (Extant, Probably Extant, Possibly
-                                Extant) and seasonality (Resident, Breeding, Non-breeding, Passage). Centroids are then
-                                computed to get one point per species.
+                            <p>The dataset is based on the latest global IUCN Red List assessments and associated range
+                                data. We retain the most specific threatened taxonomic level available (species or
+                                subspecies). Coverage is limited to taxa with available spatial data; as of June 2026,
+                                spatial data is available for approximately 88% of IUCN-assessed species (<a
+                                    href="https://www.iucnredlist.org/resources/spatial-data-download">source</a>).
+                            </p>
+                            <figure class="coverage-figure">
+                                <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Red_List_by_group_260327.png"
+                                    alt="IUCN Red List species count by group and category" />
+                                <figcaption>This project covers mostly the 5 first groups (excl. some marine
+                                    fishes).
+                                    Total species or sub-species displayed: <span id="species-count">—</span>.
+                                </figcaption>
+                            </figure>
+                            <p>For each taxon, we select a representative geometry from range polygons using a
+                                prioritized combination of presence categories (Extant, Probably Extant, Possibly
+                                Extant) and seasonality (Resident, Breeding, Non-breeding, Passage). We then calculate
+                                the centroid of the selected geometry to produce a single representative point for each
+                                species.
                                 <span id="centroid-sentence-primary">Species with disconnected ranges get displayed on
                                     their largest distribution area.</span>
                                 <span id="centroid-sentence-multi">Species with disconnected ranges can receive several
                                     label points (max 2), but secondary clusters are kept only when they represent
                                     enough of the total mapped range (min 20%).</span>
+                                Points are colored according to threat level, highlighting regions with the highest
+                                concentrations of threatened biodiversity.
                             </p>
-                            <p>Name size and weight come from Wikipedia pageviews over the last completed year
+                            <p>Name size and weight come from Wikipedia pageviews (human traffic only) over the last
+                                completed year
                                 (Jun&nbsp;25 – May&nbsp;26). More-viewed animals appear earlier; zooming in reveals
                                 less-viewed species. Animals without a resolved Wikipedia article or with 0 views in a
-                                year get 1 view so that they appear in the smallest size. Photos come from Wikidata
-                                or Wikipedia first, then Wikimedia Commons and iNaturalist fallbacks.</p>
-                            <figure class="coverage-figure">
-                                <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Red_List_by_group_260327.png"
-                                    alt="IUCN Red List species count by group and category" />
-                                <figcaption>This project currently covers mostly the 5 first groups (excl. some marine
-                                    fishes).
-                                    Total species or sub-species displayed: <span id="species-count">—</span>.
-                                </figcaption>
-                            </figure>
+                                year get 1 view so that they appear in the smallest size. Photos come from Wikipedia
+                                or Wikidata first, then iNaturalist (with credits) and Wikimedia Commons fallbacks.</p>
+
                             <span class="data-credit">
-                                Spatial data: IUCN 2025. The IUCN Red List of Threatened Species. Version 2025-2.
+                                Spatial data credits: IUCN 2025. The IUCN Red List of Threatened Species. Version
+                                2025-2.
                                 <a href="https://www.iucnredlist.org/" target="_blank"
                                     rel="noopener noreferrer">https://www.iucnredlist.org</a>.
                                 Downloaded on 14 June 2026. Data last updated 10 October 2025.
@@ -887,6 +896,9 @@
             if (!animalLayerIds.every(layerId => map.getLayer(layerId))) return;
             const filter = getAnimalFilter();
             animalLayerIds.forEach(layerId => map.setFilter(layerId, filter));
+            const count = animals.features.filter(f => featureMatchesCurrentFilters(f)).length;
+            const el = document.getElementById('filter-count-label');
+            if (el) el.textContent = `Current filters: ${count.toLocaleString()} taxa`;
         }
 
         function featureMatchesCurrentFilters(feature) {
@@ -1014,9 +1026,10 @@
                 'Other (Reptiles, Amphibians)': 'Reptiles, Amphibians',
                 'Other (Reptiles, Amphib., Crust.)': 'Reptiles, Amphibians',
                 'Fish (sharks, freshwater)': 'Fishes (not comprehensive)',
-                'Crustaceans': 'Crustaceans, Molluscs (not comprehensive)',
-                'Crustaceans (not comprehensive)': 'Crustaceans, Molluscs (not comprehensive)',
-                'Crustaceans, Molluscs (not comp.)': 'Crustaceans, Molluscs (not comprehensive)',
+                'Crustaceans': 'Crustaceans, Molluscs, Corals (not comprehensive)',
+                'Crustaceans (not comprehensive)': 'Crustaceans, Molluscs, Corals (not comprehensive)',
+                'Crustaceans, Molluscs (not comp.)': 'Crustaceans, Molluscs, Corals (not comprehensive)',
+                'Crustaceans, Molluscs (not comprehensive)': 'Crustaceans, Molluscs, Corals (not comprehensive)',
             };
             (featureCollection.features || []).forEach(feature => {
                 const props = feature.properties || {};

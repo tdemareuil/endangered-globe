@@ -60,7 +60,7 @@ END = ""
 
 OTHER_TAXON_GROUP = "Other (Reptiles, Amphib., Crust.)"
 FISH_TAXON_GROUP = "Fishes (not comprehensive)"
-MOLLUSCS_TAXON_GROUP = "Crustaceans, Molluscs (not comprehensive)"
+MOLLUSCS_TAXON_GROUP = "Crustaceans, Molluscs, Corals (not comprehensive)"
 
 SPATIAL_PACKAGE_CONFIG = {
     "MAMMALS": {"patterns": ["MAMMALS/*.shp"], "taxon_group": "Mammals"},
