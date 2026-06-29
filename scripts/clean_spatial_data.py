@@ -50,6 +50,12 @@ PACKAGE_PATTERNS = {
     "CONE_SNAILS":        ["MOLLUSCS/CONE_SNAILS/*.shp"],
     "REEF_FORMING_CORALS":["MOLLUSCS/REEF_FORMING_CORALS/*.shp"],
     "FW_MOLLUSCS":        ["MOLLUSCS/FW_MOLLUSCS/*.shp"],
+    # Freshwater other fish — multi-part shapefiles in FW_OTHER/
+    "FW_OTHER":   ["FW_OTHER/*.shp"],
+    # Marine other fish — shapefiles in MARINEFISH/
+    "MARINEFISH": ["MARINEFISH/*.shp"],
+    # Insects — freshwater Odonata
+    "FW_ODONATA": ["FW_ODONATA/*.shp"],
 }
 
 PRESENCE_CODES = None  # Keep all presence codes; the notebook ranks them before centroid placement.

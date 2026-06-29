@@ -58,9 +58,10 @@ COMMONS_API_URL = "https://commons.wikimedia.org/w/api.php"
 START = ""
 END = ""
 
-OTHER_TAXON_GROUP = "Other (Reptiles, Amphib., Crust.)"
-FISH_TAXON_GROUP = "Fishes (not comprehensive)"
+OTHER_TAXON_GROUP    = "Other (Reptiles, Amphib., Crust.)"
+FISH_TAXON_GROUP     = "Fishes (not comprehensive)"
 MOLLUSCS_TAXON_GROUP = "Crustaceans, Molluscs, Corals (not comprehensive)"
+INSECTS_TAXON_GROUP  = "Insects, other invertebrates (not comprehensive)"
 
 SPATIAL_PACKAGE_CONFIG = {
     "MAMMALS": {"patterns": ["MAMMALS/*.shp"], "taxon_group": "Mammals"},
@@ -94,6 +95,12 @@ SPATIAL_PACKAGE_CONFIG = {
     "CONE_SNAILS":       {"patterns": ["MOLLUSCS/CONE_SNAILS/*.shp"], "taxon_group": MOLLUSCS_TAXON_GROUP},
     "REEF_FORMING_CORALS":{"patterns": ["MOLLUSCS/REEF_FORMING_CORALS/*.shp"], "taxon_group": MOLLUSCS_TAXON_GROUP},
     "FW_MOLLUSCS":       {"patterns": ["MOLLUSCS/FW_MOLLUSCS/*.shp"], "taxon_group": MOLLUSCS_TAXON_GROUP},
+    # Freshwater other fish — multi-part shapefiles in FW_OTHER/
+    "FW_OTHER":   {"patterns": ["FW_OTHER/*.shp"],   "taxon_group": FISH_TAXON_GROUP},
+    # Marine other fish — shapefiles in MARINEFISH/
+    "MARINEFISH": {"patterns": ["MARINEFISH/*.shp"], "taxon_group": FISH_TAXON_GROUP},
+    # Insects — freshwater Odonata (dragonflies & damselflies)
+    "FW_ODONATA": {"patterns": ["FW_ODONATA/*.shp"], "taxon_group": INSECTS_TAXON_GROUP},
     # BirdLife BOTW GPKG — single layer "all_species", taxon ID column is "sisid", no category column
     "BIRDS": {"patterns": ["BIRDS/*.gpkg"], "taxon_group": "Birds"},
 }
@@ -104,7 +111,10 @@ MARINE_FISH_PACKAGES = [
     "TUNAS_BILLFISHES_SWORDFISH", "WRASSES_PARROTFISHES",
 ]
 
-MOLLUSCS_PACKAGES = ["ABALONES", "CONE_SNAILS", "REEF_FORMING_CORALS", "FW_MOLLUSCS"]
+MOLLUSCS_PACKAGES  = ["ABALONES", "CONE_SNAILS", "REEF_FORMING_CORALS", "FW_MOLLUSCS"]
+FW_OTHER_PACKAGES     = ["FW_OTHER"]
+MARINE_OTHER_PACKAGES = ["MARINEFISH"]
+INSECTS_PACKAGES      = ["FW_ODONATA"]
 
 RUN_MODE_SPATIAL_PACKAGES = {
     "sample_mammals":     ["MAMMALS"],
@@ -113,12 +123,18 @@ RUN_MODE_SPATIAL_PACKAGES = {
     "sample_other":       ["REPTILES", "AMPHIBIANS", "FW_CRABS", "FW_CRAYFISH", "FW_SHRIMPS", "LOBSTERS"],
     "sample_marine_fish": MARINE_FISH_PACKAGES,
     "sample_molluscs":    MOLLUSCS_PACKAGES,
+    "sample_fw_other":    FW_OTHER_PACKAGES,
+    "sample_marine_other":MARINE_OTHER_PACKAGES,
+    "sample_insects":     INSECTS_PACKAGES,
     "full_mammals":       ["MAMMALS"],
     "full_other":         ["REPTILES", "AMPHIBIANS", "FW_CRABS", "FW_CRAYFISH", "FW_SHRIMPS", "LOBSTERS"],
     "full_fish":          ["FW_FISH", "SHARKS_RAYS_CHIMAERAS"],
     "full_birds":         ["BIRDS"],
     "full_marine_fish":   MARINE_FISH_PACKAGES,
     "full_molluscs":      MOLLUSCS_PACKAGES,
+    "fw_other":           FW_OTHER_PACKAGES,
+    "marine_other":       MARINE_OTHER_PACKAGES,
+    "full_insects":       INSECTS_PACKAGES,
 }
 
 CATEGORY_LABEL_TO_CODE = {
@@ -352,6 +368,24 @@ def wikimedia_retry_after(response, default=10):
     return default
 
 
+def random_point_in_polygon(polygon, seed=None):
+    """Return a reproducible random interior point of a Shapely polygon.
+
+    Uses rejection sampling within the bounding box, seeded for reproducibility.
+    Falls back to ``representative_point()`` if no interior point is found within
+    2000 attempts (e.g. very thin or irregular polygons).
+    """
+    import random as _random
+    from shapely.geometry import Point
+    rng = _random.Random(seed)
+    minx, miny, maxx, maxy = polygon.bounds
+    for _ in range(2000):
+        p = Point(rng.uniform(minx, maxx), rng.uniform(miny, maxy))
+        if polygon.contains(p):
+            return p
+    return polygon.representative_point()
+
+
 def geometry_vertex_count(geom):
     """Count total vertices in a Shapely geometry (all parts and interior rings)."""
     parts = list(geom.geoms) if hasattr(geom, "geoms") else [geom]
@@ -362,8 +396,13 @@ def geometry_vertex_count(geom):
 
 
 def title_fix_possessive(s):
-    """Title-case a string but lowercase the 's' in possessives (e.g. \"Lion'S\" → \"Lion's\")."""
-    return re.sub(r"'(\w)", lambda m: "'" + m.group(1).lower(), str(s).title())
+    """Title-case a string but lowercase the 's' in possessives (e.g. \"Lion'S\" → \"Lion's\").
+
+    Handles both straight (U+0027) and curly (U+2019) apostrophes, which IUCN common
+    names use inconsistently.
+    """
+    titled = str(s).title()
+    return re.sub("[’'](\\w)", lambda m: m.group(0)[0] + m.group(1).lower(), titled)
 
 
 def pick_path(obj, *paths):

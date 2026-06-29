@@ -138,11 +138,46 @@
         .menu-track {
             display: flex;
             width: 200%;
+            align-items: stretch;
             transition: transform 220ms ease;
         }
 
         #menu.show-details .menu-track {
             transform: translateX(-50%);
+        }
+
+        #menu.show-details:not(.menu-collapsed) {
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            width: 282px;
+            max-width: calc(100vw - 30px);
+            height: min(760px, calc(100vh - 30px));
+        }
+
+        #menu.show-details:not(.menu-collapsed) .menu-body,
+        #menu.show-details:not(.menu-collapsed) .menu-viewport,
+        #menu.show-details:not(.menu-collapsed) .menu-track,
+        #menu.show-details:not(.menu-collapsed) .menu-view {
+            min-height: 0;
+        }
+
+        #menu.show-details:not(.menu-collapsed) .menu-body,
+        #menu.show-details:not(.menu-collapsed) .menu-viewport,
+        #menu.show-details:not(.menu-collapsed) .menu-track {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        #menu.show-details:not(.menu-collapsed) .menu-track {
+            flex-direction: row;
+            height: 100%;
+        }
+
+        #menu.show-details:not(.menu-collapsed) .details-copy {
+            max-height: none;
         }
 
         .menu-view {
@@ -151,6 +186,8 @@
             max-width: 50%;
             min-width: 0;
             overflow-wrap: break-word;
+            display: flex;
+            flex-direction: column;
         }
 
         .menu-view+.menu-view {
@@ -183,6 +220,8 @@
         }
 
         .details-copy {
+            flex: 1;
+            min-height: 0;
             max-height: min(62vh, 520px);
             overflow-y: auto;
             padding-right: 6px;
@@ -468,6 +507,18 @@
                 padding: 10px 2px 2px 0;
             }
 
+            #menu.show-details:not(.menu-collapsed) {
+                width: auto;
+                max-width: none;
+                height: calc(100vh - 20px);
+            }
+
+            #menu.show-details:not(.menu-collapsed) .menu-body {
+                max-height: none;
+                overflow: hidden;
+                padding-bottom: 0;
+            }
+
             #menu p {
                 margin-bottom: 10px;
                 font-size: 11px;
@@ -528,9 +579,7 @@
                         <p>
                             Mapping threatened animal species using
                             <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer">IUCN Red
-                                List</a>
-                            and <a href="https://www.birdlife.org/" target="_blank" rel="noopener noreferrer">BirdLife
-                                International</a> data.
+                                List</a> data.
                             Sized by Wikipedia popularity (annual pageviews) — zoom in to reveal rarer species.
                             More details <button id="details-open" class="text-link"
                                 type="button">here</button>.<br><br>
@@ -570,8 +619,13 @@
                                     value="Crustaceans, Molluscs, Corals (not comprehensive)"><span
                                     class="dot dot-group"></span> Crustaceans, Molluscs, Corals (not
                                 comprehensive)</label>
+                            <label><input type="checkbox" name="animal-filter"
+                                    value="Insects, other invertebrates (not comprehensive)"><span
+                                    class="dot dot-group"></span> Insects, other invertebrates (not
+                                comprehensive)</label>
                         </div>
-                        <p id="filter-count-label" style="font-size:11px;font-style:italic;color:rgba(255,255,255,0.5);margin:12px 0 0"></p>
+                        <p id="filter-count-label"
+                            style="font-size:11px;font-style:italic;color:rgba(255,255,255,0.5);margin:12px 0 0"></p>
                         <button id="random-species-button" class="random-species-button" type="button">Zoom on a random
                             species</button>
                     </div>
@@ -1030,6 +1084,7 @@
                 'Crustaceans (not comprehensive)': 'Crustaceans, Molluscs, Corals (not comprehensive)',
                 'Crustaceans, Molluscs (not comp.)': 'Crustaceans, Molluscs, Corals (not comprehensive)',
                 'Crustaceans, Molluscs (not comprehensive)': 'Crustaceans, Molluscs, Corals (not comprehensive)',
+                'Insects (not comprehensive)': 'Insects, other invertebrates (not comprehensive)',
             };
             (featureCollection.features || []).forEach(feature => {
                 const props = feature.properties || {};

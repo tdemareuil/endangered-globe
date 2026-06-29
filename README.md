@@ -118,12 +118,12 @@ Spatial download coverage log for IUCN spatial-download categories:
 | Freshwater molluscs / `MOLLUSCS/FW_MOLLUSCS` | Covered | Crustaceans, Molluscs (not comprehensive) | `full_molluscs` | Single large shapefile covering freshwater bivalves and gastropods. |
 | Freshwater fishes / `FW_FISH` | Covered | Fishes (not comprehensive) | `full_fish` | Comprehensive for freshwater fish. Split files such as `FW_FISH_PART*.shp` are concatenated by the cleaning script. |
 | Sharks, rays, and chimaeras / `SHARKS_RAYS_CHIMAERAS` | Covered | Fishes (not comprehensive) | `full_fish` | Comprehensive for cartilaginous fish. |
-| Marine fish / `MARINE FISH/*` | Covered (partial) | Fishes (not comprehensive) | `full_marine_fish` | 10 family groups currently included; many marine bony fish families remain outside current spatial coverage. |
-| Other corals (non-reef-forming) | Not covered | none | none | Outside the current animal-label scope. |
-| Other molluscs (clams, squid, octopus, etc.) | Not covered | none | none | Not explicitly available for download. |
-| Insects and other terrestrial/freshwater arthropods | Not covered | none | none | Excluded by default because broad insect coverage would create many low-signal API calls. Add only explicit packages if needed later. |
-| Plants, including conifers, cycads, mangroves, and seagrasses | Not covered | none | none | Outside the current animal-label scope. |
-| Any other IUCN downloadable spatial category | Not covered until mapped | TBD | none | Add the folder pattern to `SPATIAL_PACKAGE_CONFIG`, include it in a `RUN_MODE_SPATIAL_PACKAGES` entry, choose a UI group/run mode, then document it here. |
+| Marine fish / Several folders | Covered | Fishes (not comprehensive) | `full_marine_fish`, `marine_other` | Covered all species available for IUCN spatial file download. |
+| Insects and other terrestrial/freshwater arthropods / `FW_ODONATA` | Covered | Insects, other invertebrates (not comprehensive) | `full_insects` | Covered all species available for IUCN spatial file download. |
+| Other corals (non-reef-forming) | Not covered | none | none | Not available for spatial file download. |
+| Other molluscs (clams, squid, octopus, etc.) | Not covered | none | none | Not available for spatial file download. |
+| Other insects and invertebrates | Not covered | none | none | Not available for spatial file download. |
+| Plants, including conifers, cycads, mangroves, and seagrasses | Not covered | none | none | Available for download, but outside the current animal-only scope. If needed, add the folder pattern to `SPATIAL_PACKAGE_CONFIG` and add a `RUN_MODE_SPATIAL_PACKAGES` entry. |
 
 Some downloads are split into several shapefile parts, such as `MAMMALS_PART1.shp` / `MAMMALS_PART2.shp` and `FW_FISH_PART*.shp`; these are chunks of the same spatial package and are concatenated by the cleaning script. We match spatial records to API rows with `id_no == taxonid`, not on `assessment_id`.
 
