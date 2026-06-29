@@ -1401,6 +1401,9 @@
                 const attrSpan = el.querySelector('#popup-img-attr');
                 const dots = el.querySelector('#popup-slide-dots');
 
+                // Preload all non-primary slide images in the background
+                slides.slice(1).forEach(s => { if (s.url) { const _p = new Image(); _p.src = s.url; } });
+
                 const goTo = (newIdx) => {
                     idx = (newIdx + slides.length) % slides.length;
                     const slide = slides[idx];
