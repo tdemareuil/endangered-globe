@@ -1,6 +1,6 @@
 # An Endangered Globe
 
-Today, more than 48,600 species are threatened with extinction. That's 28% of the 172,600 species assessed by the IUCN in 2025. This interactive 3D globe maps some of these threatened species, primarily vertebrates (Animalia). Inspired by [Topi Tjukanov's Notable People](https://tjukanovt.github.io/notable-people), the map displays no city names — the world's geography is redrawn entirely through the names of threatened animals.
+Today, more than 48,600 species are threatened with extinction. That's 28% of the 172,600 species assessed by the IUCN in 2025. This interactive 3D globe maps the threatened species with available range data, primarily vertebrates (Animalia). Inspired by [Topi Tjukanov's Notable People](https://tjukanovt.github.io/notable-people), the map displays no city names — the world's geography is redrawn entirely through the names of threatened animals.
 
 ## Table of Contents
 
