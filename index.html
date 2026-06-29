@@ -510,13 +510,39 @@
             #menu.show-details:not(.menu-collapsed) {
                 width: auto;
                 max-width: none;
-                height: calc(100vh - 20px);
+                display: block;
+                height: auto;
             }
 
             #menu.show-details:not(.menu-collapsed) .menu-body {
-                max-height: none;
-                overflow: hidden;
+                display: block;
+                flex: unset;
+                max-height: min(68vh, 520px);
+                overflow-y: auto;
+                overflow-x: hidden;
                 padding-bottom: 0;
+            }
+
+            #menu.show-details:not(.menu-collapsed) .menu-viewport {
+                display: block;
+                flex: unset;
+                overflow: hidden;
+            }
+
+            #menu.show-details:not(.menu-collapsed) .menu-track {
+                flex: unset;
+                flex-direction: row;
+                height: auto;
+            }
+
+            #menu.show-details:not(.menu-collapsed) .menu-view {
+                flex: 0 0 50%;
+                max-width: 50%;
+            }
+
+            #menu.show-details:not(.menu-collapsed) .details-copy {
+                max-height: none;
+                overflow-y: visible;
             }
 
             #menu p {
